@@ -1,0 +1,63 @@
+import daisyui from "daisyui";
+
+const daisyThemes = [
+  "light",
+  "corporate",
+  "business",
+  "emerald",
+  "nord",
+  "dark",
+  "dim",
+  "night",
+  "dracula",
+  "synthwave",
+  "cupcake",
+  "bumblebee",
+  "valentine",
+  "pastel",
+  "lemonade",
+  "cyberpunk",
+  "halloween",
+  "forest",
+  "luxury",
+  "sunset",
+  "retro",
+  "lofi",
+  "fantasy",
+  "wireframe",
+  "acid",
+  "autumn",
+  "garden",
+  "coffee",
+  "aqua",
+  "cmyk",
+  "black",
+  "winter",
+  {
+    deped: {
+      primary: "#0f4c81",
+      secondary: "#f6c344",
+      accent: "#1b8a5a",
+      neutral: "#1f2937",
+      "base-100": "#ffffff",
+      "base-200": "#f3f6fb",
+      "base-300": "#dbe4f0",
+      "base-content": "#111827",
+      info: "#2563eb",
+      success: "#16a34a",
+      warning: "#d97706",
+      error: "#dc2626",
+    },
+  },
+];
+
+export default {
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  theme: {
+    extend: {},
+  },
+  plugins: [daisyui],
+  daisyui: {
+    themes: daisyThemes,
+  },
+};

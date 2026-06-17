@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-base-200 text-base-content antialiased;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-base-200;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-base-300 rounded-full hover:bg-neutral;
+  }
+}
+
+@layer components {
+  /* Reusable card component */
+  .card {
+    @apply bg-base-100 rounded-xl shadow-sm border border-base-300 p-6;
+  }
+
+  /* Section header */
+  .section-header {
+    @apply text-lg font-semibold text-base-content mb-4;
+  }
+
+  /* Form group */
+  .form-group {
+    @apply space-y-1;
+  }
+
+  .btn-info {
+    @apply bg-sky-500 border-sky-500 text-white hover:bg-sky-600 hover:border-sky-600;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .border-gray-300 {
+    border-color: var(--color-base-300);
+  }
+
+  .divide-gray-300 > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--color-base-300);
+  }
+
+  .bg-gray-50,
+  .bg-gray-100 {
+    background-color: var(--color-base-200);
+  }
+
+  .bg-gray-200,
+  .bg-gray-300 {
+    background-color: var(--color-base-300);
+  }
+
+  .text-gray-300,
+  .text-gray-600,
+  .text-gray-900 {
+    color: var(--color-base-content);
+  }
+
+  .text-gray-300,
+  .text-gray-600 {
+    opacity: 0.65;
+  }
+}
