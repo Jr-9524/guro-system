@@ -9,5 +9,6 @@ const getSavedTheme = () => {
   return themes.includes(savedTheme) ? savedTheme : defaultTheme;
 };
 
-const useThemeStore = create((set, get) => ({
-  currentTheme: getSavedTheme(),
+const applyTheme = (theme) => {
+  document.documentElement.setAttribute("data-theme", theme);
+  document.body?.setAttribute("data-theme",
