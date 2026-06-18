@@ -10,5 +10,4 @@ const getSavedTheme = () => {
 };
 
 const applyTheme = (theme) => {
-  document.documentElement.setAttribute("data-theme", theme);
-  document.body?.setAttribute("data-theme",
+  document.documentElement.setAttribute("data-theme",
