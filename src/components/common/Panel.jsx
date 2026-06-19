@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { guroCard, guroPanel, guroText } from "../../styles/guroStyles";
 
 const Panel = ({
   title,
@@ -7,19 +8,19 @@ const Panel = ({
   children,
   className = "",
 }) => (
-  <section
-    className={`rounded-md border border-base-300 bg-base-100 p-5 ${className}`}
-  >
+  <section className={`${guroCard.base} ${guroCard.padding} ${className}`}>
     {(title || action) && (
-      <div className="mb-4 flex items-center justify-between gap-3">
-        {title && <h2 className="text-base font-semibold">{title}</h2>}
+      <div className={guroPanel.header}>
+        {title && <h2 className={guroPanel.title}>{title}</h2>}
+
         {action && (
-          <Link to={action} className="text-sm font-medium text-default">
+          <Link to={action} className={guroText.link}>
             {actionLabel}
           </Link>
         )}
       </div>
     )}
+
     {children}
   </section>
 );

@@ -6,6 +6,9 @@ import { Archive, FileText, Plus, RotateCcw } from "lucide-react";
 import toast from "react-hot-toast";
 import Button from "../components/common/Button";
 import SearchInput from "../components/common/SearchInput";
+import IepTabs from "../components/common/IepTabs";
+import Pagination from "../components/common/Pagination";
+import usePagination from "../hooks/usePagination";
 import iepService from "../services/iepService";
 import { formatDate } from "../utils/dateUtils";
 import { getStudentName } from "../utils/studentUtils";
@@ -71,6 +74,7 @@ const IEPList = ({ view = "drafts" }) => {
       );
     });
   }, [ieps, query]);
+  const pagination = usePagination(filteredIeps, 10);
 
   const removeIepFromList = (id) => {
     setIeps((currentIeps) => currentIeps.filter((iep) => iep.id !== id));
@@ -130,9 +134,14 @@ const IEPList = ({ view = "drafts" }) => {
         </Button>
       </div>
 
+      <IepTabs activeId={view} />
+
       <SearchInput
         value={query}
-        onChange={setQuery}
+        onChange={(value) => {
+          setQuery(value);
+          pagination.goToPage(1);
+        }}
         placeholder="Search IEPs..."
       />
 
@@ -143,7 +152,7 @@ const IEPList = ({ view = "drafts" }) => {
           </div>
         ) : filteredIeps.length > 0 ? (
           <div className="divide-y divide-gray-300">
-            {filteredIeps.map((iep) => (
+            {pagination.currentItems.map((iep) => (
               <div
                 key={iep.id}
                 className="flex flex-col gap-3 p-4 transition-colors hover:bg-base-200 md:flex-row md:items-center md:justify-between"
@@ -204,6 +213,15 @@ const IEPList = ({ view = "drafts" }) => {
             </div>
           </div>
         )}
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalItems={filteredIeps.length}
+          pageSize={pagination.pageSize}
+          onPageChange={pagination.goToPage}
+          pageSizeOptions={[10, 15, 25]}
+          onPageSizeChange={pagination.setPageSize}
+          itemLabel="IEPs"
+        />
       </section>
     </div>
   );

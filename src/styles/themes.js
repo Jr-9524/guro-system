@@ -1,0 +1,53 @@
+export const themeDefinitions = {
+  "guro-blue": {
+    primary: "#1d4ed8",
+    "primary-content": "#ffffff",
+    secondary: "#0f766e",
+    "secondary-content": "#ffffff",
+    accent: "#d97706",
+    "accent-content": "#ffffff",
+    neutral: "#172554",
+    "neutral-content": "#ffffff",
+    "base-100": "#ffffff",
+    "base-200": "#f4f7fb",
+    "base-300": "#dbe5f1",
+    "base-content": "#172033",
+    info: "#2563eb",
+    "info-content": "#ffffff",
+    success: "#15803d",
+    "success-content": "#ffffff",
+    warning: "#b45309",
+    "warning-content": "#ffffff",
+    error: "#dc2626",
+    "error-content": "#ffffff",
+  },
+  "guro-night": {
+    primary: "#60a5fa",
+    "primary-content": "#0b1220",
+    secondary: "#5eead4",
+    "secondary-content": "#0b1220",
+    accent: "#fbbf24",
+    "accent-content": "#1f2937",
+    neutral: "#0b1220",
+    "neutral-content": "#e5edf8",
+    "base-100": "#111c2e",
+    "base-200": "#0b1424",
+    "base-300": "#26364d",
+    "base-content": "#e5edf8",
+    info: "#60a5fa",
+    "info-content": "#0b1220",
+    success: "#4ade80",
+    "success-content": "#0b1220",
+    warning: "#fbbf24",
+    "warning-content": "#1f2937",
+    error: "#f87171",
+    "error-content": "#0b1220",
+  },
+};
+
+export const themeOptions = [
+  { id: "guro-blue", label: "GURO Blue", mode: "light" },
+  { id: "guro-night", label: "GURO Night", mode: "dark" },
+];
+
+export const defaultTheme = themeOptions[0].id;

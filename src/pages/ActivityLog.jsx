@@ -16,6 +16,8 @@ import Stat from "../components/common/Stat";
 import auditService from "../services/auditService";
 import Button from "../components/common/Button";
 import SearchInput from "../components/common/SearchInput";
+import Pagination from "../components/common/Pagination";
+import usePagination from "../hooks/usePagination";
 
 const filters = [
   { value: "all", label: "All" },
@@ -87,6 +89,7 @@ const ActivityLog = () => {
       }, {}),
     [items],
   );
+  const pagination = usePagination(filteredItems, 15);
 
   const clearActivity = async () => {
     await auditService.clear();
@@ -138,7 +141,10 @@ const ActivityLog = () => {
       <section className="rounded-lg border border-gray-300 bg-base-100 p-4">
         <SearchInput
           value={query}
-          onChange={setQuery}
+          onChange={(value) => {
+            setQuery(value);
+            pagination.goToPage(1);
+          }}
           placeholder="Search activity..."
           autoFocus
         />
@@ -152,7 +158,10 @@ const ActivityLog = () => {
                   ? "btn-active bg-gray-100"
                   : "btn-outline"
               }`}
-              onClick={() => setActiveFilter(filter.value)}
+              onClick={() => {
+                setActiveFilter(filter.value);
+                pagination.goToPage(1);
+              }}
             >
               {filter.label}
               <span>{counts[filter.value] || 0}</span>
@@ -164,7 +173,7 @@ const ActivityLog = () => {
       <section className="rounded-lg border border-gray-300 bg-base-100">
         {filteredItems.length ? (
           <div className="divide-y divide-gray-300">
-            {filteredItems.map((item) => (
+            {pagination.currentItems.map((item) => (
               <ActivityRow key={item.id} item={item} />
             ))}
           </div>
@@ -180,6 +189,15 @@ const ActivityLog = () => {
             </div>
           </div>
         )}
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalItems={filteredItems.length}
+          pageSize={pagination.pageSize}
+          onPageChange={pagination.goToPage}
+          pageSizeOptions={[15, 20, 50]}
+          onPageSizeChange={pagination.setPageSize}
+          itemLabel="records"
+        />
       </section>
     </div>
   );

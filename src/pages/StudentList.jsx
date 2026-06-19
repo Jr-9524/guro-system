@@ -7,7 +7,6 @@ import {
   Check,
   Download,
   FileSpreadsheet,
-  Grid3X3,
   Mail,
   MoreHorizontal,
   Pencil,
@@ -15,7 +14,6 @@ import {
   Plus,
   Trash2,
   User,
-  List,
   PersonStanding,
   NotebookText,
   Upload,
@@ -36,6 +34,9 @@ import Modal from "../components/common/Modal";
 import Stat from "../components/common/Stat";
 import StudentForm from "../components/students/StudentForm";
 import SearchInput from "../components/common/SearchInput";
+import SectionTabs from "../components/common/SectionTabs";
+import Pagination from "../components/common/Pagination";
+import usePagination from "../hooks/usePagination";
 
 import { formatDate } from "../utils/dateUtils";
 import { normalizeIep } from "../utils/iepUtils";
@@ -209,6 +210,7 @@ const StudentsView = () => {
     sortBy,
     sortOrder,
   ]);
+  const pagination = usePagination(filteredAndSorted, 10);
 
   const stats = useMemo(
     () => ({
@@ -236,6 +238,7 @@ const StudentsView = () => {
       nextParams.set("view", view);
     }
     setSearchParams(nextParams);
+    pagination.goToPage(1);
   };
 
   const handleDelete = (student) => {
@@ -447,20 +450,6 @@ const StudentsView = () => {
                 <Contact icon={Mail} value={selectedStudent.guardianEmail} />
               </div>
             </section>
-
-            {/* <section className="rounded-lg border border-base-300 bg-base-100 p-4">
-              <h2 className=" text-base font-semibold">IEP Status</h2>
-
-              <Button
-                className="mt-3 w-full border border-gray-300"
-                onClick={() =>
-                  navigate(`/iep/new?studentId=${selectedStudent.id}`)
-                }
-                icon={Plus}
-              >
-                Create IEP
-              </Button>
-            </section> */}
           </aside>
         </div>
 
@@ -542,25 +531,23 @@ const StudentsView = () => {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between ">
           <SearchInput
             value={searchQuery}
-            onChange={setSearchQuery}
+            onChange={(value) => {
+              setSearchQuery(value);
+              pagination.goToPage(1);
+            }}
             placeholder="Search students..."
           />
 
-          <div className="flex items-center gap-4 rounded-lg border border-gray-300 p-1.5">
-            <ViewButton
-              active={currentView === Views.TABLE}
-              icon={List}
-              label="Table"
-              onClick={() => changeView(Views.TABLE)}
-            />
-
-            <ViewButton
-              active={currentView === Views.GALLERY}
-              icon={Grid3X3}
-              label="Gallery"
-              onClick={() => changeView(Views.GALLERY)}
-            />
-          </div>
+          <SectionTabs
+            label="Student views"
+            activeId={currentView}
+            onChange={changeView}
+            items={[
+              { id: Views.TABLE, label: "Table" },
+              { id: Views.GALLERY, label: "Gallery" },
+              { id: Views.CALENDAR, label: "Calendar" },
+            ]}
+          />
         </div>
 
         {/* Filters */}
@@ -573,6 +560,7 @@ const StudentsView = () => {
 
               setSortBy(nextSortBy);
               setSortOrder(nextSortOrder);
+              pagination.goToPage(1);
             }}
           >
             <option value="lastName:asc">Name A-Z</option>
@@ -584,7 +572,10 @@ const StudentsView = () => {
           <select
             className="select border border-gray-300 cursor-pointer p-1.5"
             value={filters.gradeLevel}
-            onChange={(event) => setFilter("gradeLevel", event.target.value)}
+            onChange={(event) => {
+              setFilter("gradeLevel", event.target.value);
+              pagination.goToPage(1);
+            }}
           >
             {gradeOptions.map((grade) => (
               <option key={grade} value={grade}>
@@ -596,7 +587,10 @@ const StudentsView = () => {
           <select
             className="select border border-gray-300 cursor-pointer p-1.5"
             value={filters.status}
-            onChange={(event) => setFilter("status", event.target.value)}
+            onChange={(event) => {
+              setFilter("status", event.target.value);
+              pagination.goToPage(1);
+            }}
           >
             <option value="all">All status</option>
             <option value="active">Active</option>
@@ -620,7 +614,7 @@ const StudentsView = () => {
           <>
             {currentView === Views.TABLE && (
               <StudentTable
-                students={filteredAndSorted}
+                students={pagination.currentItems}
                 onOpen={(student) => navigate(`/students/${student.id}`)}
                 onEdit={setEditingStudent}
                 onDelete={setDeleteConfirm}
@@ -629,7 +623,7 @@ const StudentsView = () => {
 
             {currentView === Views.GALLERY && (
               <StudentGallery
-                students={filteredAndSorted}
+                students={pagination.currentItems}
                 onOpen={(student) => navigate(`/students/${student.id}`)}
               />
             )}
@@ -638,6 +632,17 @@ const StudentsView = () => {
           <EmptyState onAdd={() => setIsAddModalRequested(true)} />
         )}
       </section>
+      {currentView !== Views.CALENDAR && (
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalItems={filteredAndSorted.length}
+          pageSize={pagination.pageSize}
+          onPageChange={pagination.goToPage}
+          pageSizeOptions={[10, 25, 50]}
+          onPageSizeChange={pagination.setPageSize}
+          itemLabel="students"
+        />
+      )}
 
       <Modal
         isOpen={isAddModalOpen}
@@ -1170,16 +1175,6 @@ const addIepEvent = (
     color,
   });
 };
-
-const ViewButton = ({ active, icon: Icon, label, onClick }) => (
-  <button
-    className={`join-item btn btn-sm gap-2 ${active ? "btn-active" : ""}`}
-    onClick={onClick}
-  >
-    <Icon className="h-4 w-4" />
-    {label}
-  </button>
-);
 
 const Info = ({ label, value }) => (
   <div>

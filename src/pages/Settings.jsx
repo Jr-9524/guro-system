@@ -11,6 +11,8 @@ import {
   Users,
   CheckCircle2,
   Notebook,
+  Palette,
+  History,
 } from "lucide-react";
 import Button from "../components/common/Button";
 import Stat from "../components/common/Stat";
@@ -27,6 +29,7 @@ import {
 import auditService from "../services/auditService";
 import workspaceStoreService from "../services/workspaceStoreService";
 import useThemeStore from "../stores/themeStore";
+import { themeDefinitions, themeOptions } from "../styles/themes";
 
 const PREFERENCES_KEY = "app-preferences";
 
@@ -208,6 +211,23 @@ const Settings = () => {
       <div className="grid gap-4 xl:grid">
         <div className="space-y-4">
           <SettingsPanel
+            icon={Palette}
+            title="Appearance"
+            description="Choose how GURO looks on this device."
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              {themeOptions.map((theme) => (
+                <ThemeOption
+                  key={theme.id}
+                  theme={theme}
+                  selected={currentTheme === theme.id}
+                  onSelect={() => setTheme(theme.id)}
+                />
+              ))}
+            </div>
+          </SettingsPanel>
+
+          <SettingsPanel
             icon={MonitorCog}
             title="Workspace Preferences"
             description="These preferences are saved locally on this device."
@@ -246,6 +266,20 @@ const Settings = () => {
                 Reset Preferences
               </button>
             </div>
+          </SettingsPanel>
+
+          <SettingsPanel
+            icon={History}
+            title="Administration"
+            description="Secondary workspace tools for review and troubleshooting."
+          >
+            <Link
+              to="/activity"
+              className="flex items-center justify-between rounded-xl border border-base-300 p-4 text-sm font-semibold transition-colors hover:bg-base-200 hover:text-primary"
+            >
+              <span>Open Activity Log</span>
+              <span aria-hidden="true">View</span>
+            </Link>
           </SettingsPanel>
 
           <SettingsPanel
@@ -306,59 +340,6 @@ const Settings = () => {
             </div>
           </SettingsPanel>
         </div>
-
-        {/* <aside className="space-y-4">
-          <SettingsPanel icon={UserRound} title="Account">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-lg font-bold text-primary-content">
-                {user?.fullName?.[0] || "U"}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate font-semibold">
-                  {user?.fullName || "Current User"}
-                </p>
-                <p className="text-sm capitalize text-base-content/60">
-                  {user?.role || "teacher"}
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 rounded-lg bg-base-200 p-3 text-sm text-base-content/70">
-              Signed in locally. Account editing can be added once user
-              management is moved fully into the database.
-            </div>
-          </SettingsPanel>
-
-          <SettingsPanel icon={ShieldCheck} title="Security">
-            <div className="space-y-3 text-sm text-base-content/70">
-              <StatusRow label="Session" value="Active" tone="success" />
-              <StatusRow label="Student data" value="Encrypted fallback" />
-              <StatusRow label="Database" value="Local device" />
-              <StatusRow label="Backup" value="Manual export/restore" />
-            </div>
-          </SettingsPanel>
-
-          <SettingsPanel icon={Database} title="Workspace Health">
-            <div className="space-y-4">
-              <ProgressBar
-                label="Student IEP coverage"
-                value={storageStats.coverage}
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <MiniStat
-                  label="With IEP"
-                  value={storageStats.studentsWithIeps}
-                />
-                <MiniStat
-                  label="Needs IEP"
-                  value={Math.max(
-                    students.length - storageStats.studentsWithIeps,
-                    0,
-                  )}
-                />
-              </div>
-            </div>
-          </SettingsPanel>
-        </aside> */}
       </div>
 
       <Modal
@@ -416,6 +397,42 @@ const PreferenceToggle = ({ title, description, checked, onChange }) => (
     />
   </label>
 );
+
+const ThemeOption = ({ theme, selected, onSelect }) => {
+  const colors = themeDefinitions[theme.id];
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`flex items-center gap-4 rounded-xl border p-4 text-left transition-all ${
+        selected
+          ? "border-primary bg-primary/10 ring-2 ring-primary/15"
+          : "border-base-300 bg-base-100 hover:border-primary/40 hover:bg-base-200"
+      }`}
+    >
+      <span
+        className="grid h-11 w-11 shrink-0 grid-cols-2 overflow-hidden rounded-xl border border-base-300 shadow-sm"
+        aria-hidden="true"
+      >
+        <span style={{ backgroundColor: colors.primary }} />
+        <span style={{ backgroundColor: colors.secondary }} />
+        <span style={{ backgroundColor: colors["base-100"] }} />
+        <span style={{ backgroundColor: colors.accent }} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold">{theme.label}</span>
+        <span className="mt-0.5 block text-xs capitalize text-base-content/55">
+          {theme.mode} theme
+        </span>
+      </span>
+      {selected && (
+        <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />
+      )}
+    </button>
+  );
+};
 
 const RestoreBackupTool = ({
   backup,

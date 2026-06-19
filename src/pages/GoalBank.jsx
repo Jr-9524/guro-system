@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { ClipboardCopy, Plus, Send, Trash2 } from "lucide-react";
+import { ClipboardCopy, Pencil, Plus, Send, Trash2 } from "lucide-react";
 
 import Button from "../components/common/Button";
 import Modal from "../components/common/Modal";
@@ -11,35 +11,52 @@ import SelectFilter from "../components/filters/SelectFilter";
 import Stat from "../components/common/Stat";
 import TextAreaInput from "../components/forms/TextAreaInput";
 import SearchInput from "../components/common/SearchInput";
+import IepTabs from "../components/common/IepTabs";
+import Pagination from "../components/common/Pagination";
+import usePagination from "../hooks/usePagination";
 
 import workspaceStoreService from "../services/workspaceStoreService";
 import { loadCustomGoals, saveCustomGoals } from "../services/goalBankService";
 import { PENDING_GOAL_KEY, seededGoals } from "../data/goalBankTemplates";
+import {
+  commonSupports,
+  goalAreas,
+  goalTemplateToGoal,
+  measurementFrequencies,
+  measurementMethods,
+  normalizeGoalTemplate,
+  reportingSchedules,
+} from "../utils/goalUtils";
 
-const emptyGoal = {
+const createEmptyTemplate = () => ({
   area: "",
-  category: "",
-  gradeBand: "",
-  title: "",
-  description: "",
-  criteria: "",
-  measurement: "",
-};
+  skillFocus: "",
+  difficulty: "Beginner",
+  goalText: "",
+  objectives: [],
+  measurementMethod: "",
+  frequency: "Weekly",
+  reportingSchedule: "Quarterly",
+  supports: [],
+  tags: [],
+  isCustom: true,
+});
 
 const GoalBank = () => {
   const navigate = useNavigate();
   const [customGoals, setCustomGoals] = useState([]);
   const [query, setQuery] = useState("");
   const [areaFilter, setAreaFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [difficultyFilter, setDifficultyFilter] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [draftGoal, setDraftGoal] = useState(emptyGoal);
+  const [draftGoal, setDraftGoal] = useState(createEmptyTemplate);
+  const [editingGoalId, setEditingGoalId] = useState(null);
 
   useEffect(() => {
     let isCurrent = true;
 
     loadCustomGoals().then((goals) => {
-      if (isCurrent) setCustomGoals(goals);
+      if (isCurrent) setCustomGoals(goals.map(normalizeGoalTemplate));
     });
 
     return () => {
@@ -47,52 +64,42 @@ const GoalBank = () => {
     };
   }, []);
 
-  const goals = useMemo(() => [...seededGoals, ...customGoals], [customGoals]);
+  const goals = useMemo(
+    () => [...seededGoals, ...customGoals].map(normalizeGoalTemplate),
+    [customGoals],
+  );
   const areas = useMemo(
     () => [
-      "All areas",
       ...new Set(goals.map((goal) => goal.area).filter(Boolean)),
     ],
     [goals],
   );
-  const categories = useMemo(
-    () => [
-      "All categories",
-      ...new Set(goals.map((goal) => goal.category).filter(Boolean)),
-    ],
-    [goals],
-  );
-
   const filteredGoals = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
     return goals.filter((goal) => {
       const matchesQuery =
         !normalizedQuery ||
-        [goal.title, goal.description, goal.area, goal.category, goal.gradeBand]
+        [goal.skillFocus, goal.goalText, goal.area, goal.difficulty, ...goal.tags]
           .filter(Boolean)
           .some((value) => value.toLowerCase().includes(normalizedQuery));
       const matchesArea = areaFilter === "all" || goal.area === areaFilter;
-      const matchesCategory =
-        categoryFilter === "all" || goal.category === categoryFilter;
+      const matchesDifficulty =
+        difficultyFilter === "all" || goal.difficulty === difficultyFilter;
 
-      return matchesQuery && matchesArea && matchesCategory;
+      return matchesQuery && matchesArea && matchesDifficulty;
     });
-  }, [areaFilter, categoryFilter, goals, query]);
+  }, [areaFilter, difficultyFilter, goals, query]);
+  const pagination = usePagination(filteredGoals, 10);
 
   const copyGoal = async (goal) => {
-    await navigator.clipboard.writeText(goal.description);
+    await navigator.clipboard.writeText(goal.goalText);
     toast.success("Goal copied");
   };
 
   const sendToIep = async (goal) => {
     await workspaceStoreService.set(PENDING_GOAL_KEY, {
-      area: goal.area,
-      description: goal.description,
-      accuracy: goal.criteria,
-      measurement: goal.measurement,
-      sessions: "As documented",
-      date: "",
+      goal: goalTemplateToGoal(goal),
     });
     toast.success("Goal queued for IEP builder");
     navigate("/iep/new");
@@ -101,24 +108,39 @@ const GoalBank = () => {
   const saveGoal = async (event) => {
     event.preventDefault();
 
-    if (!draftGoal.title.trim() || !draftGoal.description.trim()) {
-      toast.error("Goal title and description are required");
+    if (!draftGoal.skillFocus.trim() || !draftGoal.goalText.trim()) {
+      toast.error("Skill focus and goal sentence are required");
       return;
     }
 
-    const nextGoals = [
-      ...customGoals,
-      {
-        ...draftGoal,
-        id: `custom-${Date.now()}`,
-        source: "custom",
-      },
-    ];
+    const savedTemplate = normalizeGoalTemplate({
+      ...draftGoal,
+      id: editingGoalId || `custom-${Date.now()}`,
+      isCustom: true,
+    });
+    const nextGoals = editingGoalId
+      ? customGoals.map((goal) =>
+          goal.id === editingGoalId ? savedTemplate : goal,
+        )
+      : [...customGoals, savedTemplate];
     setCustomGoals(nextGoals);
     await saveCustomGoals(nextGoals);
-    setDraftGoal(emptyGoal);
+    setDraftGoal(createEmptyTemplate());
+    setEditingGoalId(null);
     setIsModalOpen(false);
-    toast.success("Goal template saved");
+    toast.success(editingGoalId ? "Goal template updated" : "Goal template saved");
+  };
+
+  const editCustomGoal = (goal) => {
+    setDraftGoal(normalizeGoalTemplate(goal));
+    setEditingGoalId(goal.id);
+    setIsModalOpen(true);
+  };
+
+  const openNewTemplate = () => {
+    setDraftGoal(createEmptyTemplate());
+    setEditingGoalId(null);
+    setIsModalOpen(true);
   };
 
   const deleteCustomGoal = async (goalId) => {
@@ -138,10 +160,11 @@ const GoalBank = () => {
             builder.
           </p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} icon={Plus}>
-          New Template
+        <Button onClick={openNewTemplate} icon={Plus}>
+          Create Custom Goal
         </Button>
       </div>
+      <IepTabs activeId="goals" />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <Stat
           label="Templates"
@@ -155,7 +178,7 @@ const GoalBank = () => {
         />
         <Stat
           label="Areas"
-          value={areas.length - 1}
+          value={areas.length}
           // icon={CheckCircle2}
         />
       </div>
@@ -163,37 +186,53 @@ const GoalBank = () => {
         <div className="grid gap-3 lg:grid-cols-3">
           <SearchInput
             value={query}
-            onChange={setQuery}
-            placeholder="Search by skill, disability, or template text..."
+            onChange={(value) => {
+              setQuery(value);
+              pagination.goToPage(1);
+            }}
+            placeholder="Search by skill, area, tag, or goal text..."
           />
 
           <SelectFilter
             value={areaFilter}
-            onChange={setAreaFilter}
-            options={areas}
-            allLabel="All areas"
+            onChange={(value) => {
+              setAreaFilter(value);
+              pagination.goToPage(1);
+            }}
+            options={[
+              { value: "all", label: "All areas" },
+              ...areas.map((area) => ({ value: area, label: area })),
+            ]}
           />
 
           <SelectFilter
-            value={categoryFilter}
-            onChange={setCategoryFilter}
-            options={categories}
-            allLabel="All categories"
+            value={difficultyFilter}
+            onChange={(value) => {
+              setDifficultyFilter(value);
+              pagination.goToPage(1);
+            }}
+            options={[
+              { value: "all", label: "All difficulties" },
+              "Beginner",
+              "Intermediate",
+              "Advanced",
+            ]}
           />
         </div>
       </section>
 
-      <div className="grid gap-4]">
+      <div className="grid gap-4">
         <section className="grid gap-3">
           {filteredGoals.length > 0 ? (
-            filteredGoals.map((goal) => (
+            pagination.currentItems.map((goal) => (
               <GoalCard
                 key={goal.id}
                 goal={goal}
                 onCopy={() => copyGoal(goal)}
                 onSend={() => sendToIep(goal)}
+                onEdit={goal.isCustom ? () => editCustomGoal(goal) : null}
                 onDelete={
-                  goal.source === "custom"
+                  goal.isCustom
                     ? () => deleteCustomGoal(goal.id)
                     : null
                 }
@@ -208,23 +247,32 @@ const GoalBank = () => {
             </div>
           )}
         </section>
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalItems={filteredGoals.length}
+          pageSize={pagination.pageSize}
+          onPageChange={pagination.goToPage}
+          pageSizeOptions={[10, 20, 40]}
+          onPageSizeChange={pagination.setPageSize}
+          itemLabel="goals"
+        />
       </div>
 
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="New Goal Template"
+        title={editingGoalId ? "Edit Goal Template" : "Create Custom Template"}
         size="2xl"
       >
         <form onSubmit={saveGoal} className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <Input
-              label="Title"
-              value={draftGoal.title}
+              label="Skill focus"
+              value={draftGoal.skillFocus}
               onChange={(event) =>
                 setDraftGoal((current) => ({
                   ...current,
-                  title: event.target.value,
+                  skillFocus: event.target.value,
                 }))
               }
               required
@@ -238,42 +286,29 @@ const GoalBank = () => {
                   area: value,
                 }))
               }
-              options={goalAreaOptions}
+              options={goalAreas}
               placeholder="Select an area"
             />
             <SelectInput
-              label="Category"
-              value={draftGoal.category}
+              label="Difficulty"
+              value={draftGoal.difficulty}
               onChange={(value) =>
                 setDraftGoal((current) => ({
                   ...current,
-                  category: value,
+                  difficulty: value,
                 }))
               }
-              options={goalCategoryOptions}
-              placeholder="Select a category"
-            />
-            <SelectInput
-              label="Grade band"
-              value={draftGoal.gradeBand}
-              onChange={(value) =>
-                setDraftGoal((current) => ({
-                  ...current,
-                  gradeBand: value,
-                }))
-              }
-              options={gradeBandOptions}
-              placeholder="Select a grade band"
+              options={["Beginner", "Intermediate", "Advanced"]}
             />
           </div>
 
           <TextAreaInput
-            label="Goal description"
-            value={draftGoal.description}
+            label="Editable goal sentence"
+            value={draftGoal.goalText}
             onChange={(value) =>
               setDraftGoal((current) => ({
                 ...current,
-                description: value,
+                goalText: value,
               }))
             }
             required
@@ -282,29 +317,105 @@ const GoalBank = () => {
 
           <div className="grid gap-4 md:grid-cols-2">
             <SelectInput
-              label="Criteria"
-              value={draftGoal.criteria}
+              label="Measurement method"
+              value={draftGoal.measurementMethod}
               onChange={(value) =>
                 setDraftGoal((current) => ({
                   ...current,
-                  criteria: value,
+                  measurementMethod: value,
                 }))
               }
-              options={criteriaOptions}
-              placeholder="Select criteria"
+              options={measurementMethods}
+              placeholder="Choose how progress is measured"
             />
             <SelectInput
-              label="Measurement"
-              value={draftGoal.measurement}
+              label="Frequency"
+              value={draftGoal.frequency}
               onChange={(value) =>
                 setDraftGoal((current) => ({
                   ...current,
-                  measurement: value,
+                  frequency: value,
                 }))
               }
-              options={measurementOptions}
-              placeholder="Select measurement"
+              options={measurementFrequencies}
             />
+            <SelectInput
+              label="Reporting schedule"
+              value={draftGoal.reportingSchedule}
+              onChange={(value) =>
+                setDraftGoal((current) => ({
+                  ...current,
+                  reportingSchedule: value,
+                }))
+              }
+              options={reportingSchedules}
+            />
+            <Input
+              label="Tags"
+              value={draftGoal.tags.join(", ")}
+              onChange={(event) =>
+                setDraftGoal((current) => ({
+                  ...current,
+                  tags: event.target.value
+                    .split(",")
+                    .map((tag) => tag.trim())
+                    .filter(Boolean),
+                }))
+              }
+              placeholder="reading, comprehension, main idea"
+            />
+          </div>
+
+          <TextAreaInput
+            label="Short-term objectives (one per line)"
+            value={draftGoal.objectives
+              .map((objective) => objective.description)
+              .join("\n")}
+            onChange={(value) =>
+              setDraftGoal((current) => ({
+                ...current,
+                objectives: value
+                  .split("\n")
+                  .filter((line) => line.trim())
+                  .map((description, index) => ({
+                    id: `custom-objective-${index}`,
+                    description,
+                    criteria: "",
+                    status: "Not Started",
+                  })),
+              }))
+            }
+            rows={4}
+          />
+
+          <div>
+            <p className="mb-2 text-sm font-semibold">Suggested supports</p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {commonSupports.map((support) => {
+                const selected = draftGoal.supports.includes(support);
+                return (
+                  <button
+                    key={support}
+                    type="button"
+                    onClick={() =>
+                      setDraftGoal((current) => ({
+                        ...current,
+                        supports: current.supports.includes(support)
+                          ? current.supports.filter((item) => item !== support)
+                          : [...current.supports, support],
+                      }))
+                    }
+                    className={`rounded-xl border p-3 text-left text-sm transition-colors ${
+                      selected
+                        ? "border-primary/30 bg-primary/10 text-primary"
+                        : "border-base-300 hover:bg-base-200"
+                    }`}
+                  >
+                    {support}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex justify-end gap-2">
@@ -319,31 +430,30 @@ const GoalBank = () => {
   );
 };
 
-const GoalCard = ({ goal, onCopy, onSend, onDelete }) => (
-  <article className="rounded-lg border border-gray-300 bg-base-100 p-4">
+const GoalCard = ({ goal, onCopy, onSend, onEdit, onDelete }) => (
+  <article className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div className="min-w-0">
         <div className="mb-2 flex flex-wrap gap-3">
-          <span className="badge badge-outline">{goal.area || "General"}</span>
-          <span className="badge ">{goal.category || "No category"}</span>
-          <span className="badge ">{goal.gradeBand || "All grades"}</span>
-          {goal.source === "custom" && (
+          <span className="badge badge-outline">{goal.area}</span>
+          <span className="badge badge-ghost">{goal.difficulty}</span>
+          {goal.isCustom && (
             <span className="badge badge-primary">Custom</span>
           )}
         </div>
 
-        <h2 className="text-base font-semibold">{goal.title}</h2>
+        <h2 className="text-base font-semibold">{goal.skillFocus}</h2>
         <p className="mt-2 text-sm leading-relaxed text-base-content/70">
-          {goal.description}
+          {goal.goalText}
         </p>
         <div className="mt-3 grid gap-2 text-xs text-base-content/60 md:grid-cols-2">
           <p>
-            <span className="font-semibold">Criteria:</span>{" "}
-            {goal.criteria || "Not set"}
+            <span className="font-semibold">Monitoring:</span>{" "}
+            {goal.measurementMethod || "Not set"} / {goal.frequency}
           </p>
           <p>
-            <span className="font-semibold">Measurement:</span>{" "}
-            {goal.measurement || "Not set"}
+            <span className="font-semibold">Objectives:</span>{" "}
+            {goal.objectives.length} / Reports {goal.reportingSchedule}
           </p>
         </div>
       </div>
@@ -352,8 +462,13 @@ const GoalCard = ({ goal, onCopy, onSend, onDelete }) => (
           Copy
         </Button>
         <Button onClick={onSend} icon={Send}>
-          Send to IEP
+          Use Template
         </Button>
+        {onEdit && (
+          <Button variant="secondary" onClick={onEdit} icon={Pencil}>
+            Edit
+          </Button>
+        )}
         {onDelete && (
           <button
             type="button"
@@ -368,46 +483,5 @@ const GoalCard = ({ goal, onCopy, onSend, onDelete }) => (
     </div>
   </article>
 );
-
-const criteriaOptions = [
-  "80% accuracy across 3 sessions",
-  "70% accuracy across 3 sessions",
-  "90% accuracy across 3 sessions",
-  "Independence with minimal prompting",
-];
-
-const measurementOptions = [
-  "Rubric",
-  "Checklist",
-  "Observation",
-  "Work sample",
-  "Probe",
-  "Teacher record",
-];
-
-const goalAreaOptions = [
-  "Reading",
-  "Math",
-  "Writing",
-  "Behavior",
-  "Communication",
-];
-
-const goalCategoryOptions = [
-  "Academic",
-  "Behavioral",
-  "Functional",
-  "Social Skills",
-];
-
-const gradeBandOptions = [
-  "Preschool",
-  "Kindergarten",
-  "Grades 1-3",
-  "Grades 4-6",
-  "Grades 7-9",
-  "Grades 10-12",
-  "All Grades",
-];
 
 export default GoalBank;
