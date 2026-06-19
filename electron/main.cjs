@@ -95,7 +95,7 @@ async function createWindow() {
     await mainWindow.loadURL("http://localhost:5173");
 
     // Comment this out if you do not want DevTools to open automatically.
-    // mainWindow.webContents.openDevTools();
+    mainWindow.webContents.openDevTools();
   } else {
     await mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }

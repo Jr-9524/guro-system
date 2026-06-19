@@ -28,7 +28,7 @@ const section = (title, body) => `
 const buildIepDocumentHtml = ({ title, data }) => {
   const student = data.studentInfo || {};
   const plaaFP = data.plaaFP || {};
-  const goals = data.goals || [];
+  const goals = (data.goals || []).map(normalizeGoal);
   const accommodations = data.accommodations || {};
   const services = data.services || [];
   const progressPlan = data.progressPlan || {};
@@ -141,20 +141,34 @@ const buildIepDocumentHtml = ({ title, data }) => {
             (goal, index) => `
               <h3>Goal ${index + 1}: ${escapeHtml(goal.area || "Goal")}</h3>
               <p>${escapeHtml(goal.description || "No goal description.")}</p>
+              <h4>Current Performance</h4>
+              <p>${escapeHtml(goal.currentPerformance || "Not documented.")}</p>
+              <p><strong>Need:</strong> ${escapeHtml(goal.need || "Not documented.")}</p>
+              <p><strong>Baseline:</strong> ${escapeHtml(goal.baselineValue || "Not set")} (${escapeHtml(goal.baselineMethod || "method not set")})</p>
               <table>
                 <tr>
-                  <th>Target date</th>
-                  <th>Criteria</th>
-                  <th>Sessions</th>
+                  <th>Status</th>
+                  <th>Progress</th>
+                  <th>Frequency</th>
                   <th>Measurement</th>
                 </tr>
                 <tr>
-                  <td>${escapeHtml(goal.date || "Not set")}</td>
-                  <td>${escapeHtml(goal.accuracy || "Not set")}</td>
-                  <td>${escapeHtml(goal.sessions || "Not set")}</td>
-                  <td>${escapeHtml(goal.measurement || "Not set")}</td>
+                  <td>${escapeHtml(goal.status)}</td>
+                  <td>${escapeHtml(`${goal.progressPercentage}%`)}</td>
+                  <td>${escapeHtml(goal.measurementFrequency || "Not set")}</td>
+                  <td>${escapeHtml(goal.measurementMethod || "Not set")}</td>
                 </tr>
-              </table>`,
+              </table>
+              <p><strong>Progress reporting:</strong> ${escapeHtml(goal.progressReportingSchedule || "Not set")}</p>
+              <h4>Short-Term Objectives</h4>
+              ${listItems(
+                goal.objectives.map(
+                  (objective) =>
+                    `${objective.description || "Untitled objective"} - ${objective.criteria || "criteria not set"} (${objective.status})`,
+                ),
+              )}
+              <h4>Supports / Accommodations</h4>
+              ${listItems(goal.supports)}`,
           )
           .join("")
       : "<p>No goals documented.</p>",
@@ -243,3 +257,4 @@ export const downloadIepWordDocument = ({ title, data }) => {
     "application/msword;charset=utf-8",
   );
 };
+import { normalizeGoal } from "../utils/goalUtils";

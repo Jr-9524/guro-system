@@ -7,6 +7,7 @@ import {
   Download,
   Plus,
   Printer,
+  Pencil,
   Save,
   Search,
   Sparkles,
@@ -32,14 +33,32 @@ import {
   PENDING_GOAL_KEY,
   seededGoals,
 } from "../data/goalBankTemplates";
+import {
+  applyGoalTemplate,
+  buildGoalText,
+  commonSupports,
+  createGoal,
+  createObjective,
+  getGoalStatement,
+  getGoalWarnings,
+  goalAreas,
+  goalStatuses,
+  goalTemplateToGoal,
+  measurementFrequencies,
+  measurementMethods,
+  normalizeGoal,
+  normalizeGoalTemplate,
+  objectiveStatuses,
+  reportingSchedules,
+} from "../utils/goalUtils";
 
 const sections = [
-  { title: "Student Info", sub: "Profile", key: "studentInfo" },
-  { title: "Present Levels", sub: "PLAAFP", key: "plaaFP" },
-  { title: "Annual Goals", sub: "SMART goals", key: "goals" },
-  { title: "Accommodations", sub: "Supports", key: "accommodations" },
-  { title: "Services", sub: "Schedule", key: "services" },
-  { title: "Progress Plan", sub: "Monitoring", key: "progressPlan" },
+  { title: "Choose Student", sub: "Learner profile", key: "studentInfo" },
+  { title: "Present Level", sub: "PLAAFP", key: "plaaFP" },
+  { title: "Annual Goals", sub: "Measurable goals", key: "goals" },
+  { title: "Accommodations", sub: "Learning supports", key: "accommodations" },
+  { title: "Services", sub: "Service plan", key: "services" },
+  { title: "Review & Export", sub: "Progress plan", key: "progressPlan" },
 ];
 
 const disabilityCategories = [
@@ -58,35 +77,6 @@ const disabilityCategories = [
 
 const severityLevels = ["Mild", "Moderate", "Severe", "Profound"];
 const communicationModes = ["Verbal", "Non-verbal", "FSL", "AAC", "Braille"];
-const goalAreas = [
-  "Reading",
-  "Writing",
-  "Math",
-  "Communication",
-  "Behavior",
-  "Social Skills",
-  "Motor Skills",
-  "Self-help",
-  "Attendance",
-];
-const sessionOptions = [
-  "1 consecutive session",
-  "2 consecutive sessions",
-  "3 consecutive sessions",
-  "4 consecutive sessions",
-  "Weekly",
-  "Bi-weekly",
-  "Monthly",
-];
-const measurementOptions = [
-  "Teacher-made assessment",
-  "Curriculum-based measurement",
-  "Work sample review",
-  "Observation checklist",
-  "Rubric",
-  "Progress monitoring probe",
-];
-
 const gradeLevels = [
   "K",
   "1",
@@ -148,17 +138,7 @@ const defaultIepData = {
     impact: "",
     aiDraft: "",
   },
-  goals: [
-    {
-      id: 1,
-      area: "Reading",
-      description: "",
-      date: "",
-      accuracy: "80",
-      sessions: "3 consecutive sessions",
-      measurement: "Teacher-made assessment",
-    },
-  ],
+  goals: [createGoal()],
   accommodations: {
     presentation: ["Read-aloud for tests", "Visual aids and diagrams"],
     timeEnvironment: ["Extended time", "Preferential seating"],
@@ -238,6 +218,9 @@ const IEPBuilder = () => {
   const [customGoalTemplates, setCustomGoalTemplates] = useState([]);
   const [goalBankQuery, setGoalBankQuery] = useState("");
   const [isGoalBankOpen, setIsGoalBankOpen] = useState(false);
+  const [expandedGoalId, setExpandedGoalId] = useState(
+    defaultIepData.goals[0].id,
+  );
 
   useEffect(() => {
     fetchStudents();
@@ -267,22 +250,22 @@ const IEPBuilder = () => {
 
       // Goal Bank uses this as a handoff queue; clear after one successful read.
       await workspaceStoreService.remove(PENDING_GOAL_KEY);
+      const importedGoal = queuedGoal.goal
+        ? normalizeGoal(queuedGoal.goal)
+        : createGoal({
+            area: queuedGoal.area || "",
+            description: queuedGoal.description || "",
+            generatedGoalText: queuedGoal.description || "",
+            accuracy: queuedGoal.accuracy || "",
+            measurementFrequency: queuedGoal.sessions || "",
+            measurementMethod: queuedGoal.measurement || "",
+          });
       toast.success("Goal added from Goal Bank");
       setActiveSection(2);
+      setExpandedGoalId(importedGoal.id);
       setIepData((current) => ({
         ...current,
-        goals: [
-          ...current.goals,
-          {
-            id: Date.now(),
-            area: queuedGoal.area || "Goal Bank",
-            description: queuedGoal.description || "",
-            date: queuedGoal.date || "",
-            accuracy: queuedGoal.accuracy || "",
-            sessions: queuedGoal.sessions || "",
-            measurement: queuedGoal.measurement || "",
-          },
-        ],
+        goals: [...current.goals, importedGoal],
       }));
     };
 
@@ -328,7 +311,11 @@ const IEPBuilder = () => {
         }
 
         setCurrentIepId(existing.id);
-        setIepData({ ...cloneDefaultIepData(), ...existing.data });
+        setIepData({
+          ...cloneDefaultIepData(),
+          ...existing.data,
+          goals: (existing.data?.goals || []).map(normalizeGoal),
+        });
         setCompletedSections(existing.completedSections || []);
         setActiveSection(existing.activeSection || 0);
         applyStudent(students.find((item) => item.id === existing.studentId));
@@ -355,7 +342,7 @@ const IEPBuilder = () => {
   );
 
   const goalBankTemplates = useMemo(
-    () => [...seededGoals, ...customGoalTemplates],
+    () => [...seededGoals, ...customGoalTemplates].map(normalizeGoalTemplate),
     [customGoalTemplates],
   );
 
@@ -367,13 +354,12 @@ const IEPBuilder = () => {
     return goalBankTemplates
       .filter((goal) =>
         [
-          goal.title,
-          goal.description,
+          goal.skillFocus,
+          goal.goalText,
           goal.area,
-          goal.category,
-          goal.gradeBand,
-          goal.criteria,
-          goal.measurement,
+          goal.difficulty,
+          goal.measurementMethod,
+          ...goal.tags,
         ]
           .filter(Boolean)
           .some((value) => value.toLowerCase().includes(normalizedQuery)),
@@ -413,31 +399,80 @@ const IEPBuilder = () => {
     }));
   };
 
-  const updateGoal = (goalId, field, value) => {
+  const replaceGoal = (goalId, updater) => {
     setIepData((current) => ({
       ...current,
       goals: current.goals.map((goal) =>
-        goal.id === goalId ? { ...goal, [field]: value } : goal,
+        goal.id === goalId ? normalizeGoal(updater(normalizeGoal(goal))) : goal,
       ),
     }));
   };
 
+  const updateGoal = (goalId, field, value) => {
+    replaceGoal(goalId, (goal) => ({ ...goal, [field]: value }));
+  };
+
+  const updateGoalArea = (goalId, area) => {
+    replaceGoal(goalId, (goal) => applyGoalTemplate(goal, area));
+  };
+
+  const updateAnnualGoal = (goalId, field, value) => {
+    replaceGoal(goalId, (goal) => {
+      const annualGoal = { ...goal.annualGoal, [field]: value };
+      const criteriaPercent =
+        field === "criteria" ? String(value).match(/\d+(?:\.\d+)?/)?.[0] : null;
+      return {
+        ...goal,
+        annualGoal,
+        generatedGoalText: buildGoalText(annualGoal),
+        accuracy: criteriaPercent || goal.accuracy,
+      };
+    });
+  };
+
+  const addObjective = (goalId) => {
+    replaceGoal(goalId, (goal) => ({
+      ...goal,
+      objectives: [...goal.objectives, createObjective()],
+    }));
+  };
+
+  const updateObjective = (goalId, objectiveId, field, value) => {
+    replaceGoal(goalId, (goal) => ({
+      ...goal,
+      objectives: goal.objectives.map((objective) =>
+        objective.id === objectiveId
+          ? { ...objective, [field]: value }
+          : objective,
+      ),
+    }));
+  };
+
+  const removeObjective = (goalId, objectiveId) => {
+    replaceGoal(goalId, (goal) => ({
+      ...goal,
+      objectives: goal.objectives.filter(
+        (objective) => objective.id !== objectiveId,
+      ),
+    }));
+  };
+
+  const toggleGoalSupport = (goalId, support) => {
+    replaceGoal(goalId, (goal) => ({
+      ...goal,
+      supports: goal.supports.includes(support)
+        ? goal.supports.filter((item) => item !== support)
+        : [...goal.supports, support],
+    }));
+  };
+
   const addGoal = () => {
+    const goal = createGoal();
     setIepData((current) => ({
       ...current,
-      goals: [
-        ...current.goals,
-        {
-          id: Date.now(),
-          area: "New Goal",
-          description: "",
-          date: "",
-          accuracy: "80",
-          sessions: "Weekly",
-          measurement: "Teacher-made assessment",
-        },
-      ],
+      goals: [...current.goals, goal],
     }));
+    setExpandedGoalId(goal.id);
   };
 
   const removeGoal = (goalId) => {
@@ -451,23 +486,13 @@ const IEPBuilder = () => {
   };
 
   const addGoalFromBank = (template) => {
-    const percentMatch = template.criteria?.match(/(\d+(?:\.\d+)?)\s*%/);
+    const importedGoal = goalTemplateToGoal(template);
 
     setIepData((current) => ({
       ...current,
-      goals: [
-        ...current.goals,
-        {
-          id: Date.now(),
-          area: template.area || "Goal Bank",
-          description: template.description || "",
-          date: "",
-          accuracy: percentMatch ? percentMatch[1] : "",
-          sessions: template.criteria || "As documented",
-          measurement: template.measurement || "",
-        },
-      ],
+      goals: [...current.goals, importedGoal],
     }));
+    setExpandedGoalId(importedGoal.id);
     toast.success("Goal added from Goal Bank");
   };
 
@@ -540,7 +565,7 @@ const IEPBuilder = () => {
     }));
   };
 
-  const validateBeforeSave = () => {
+  const validateBeforeSave = (validateGoals = false) => {
     if (!student?.id && !searchParams.get("studentId")) {
       toast.error("Choose a linked student before saving");
       setActiveSection(0);
@@ -553,11 +578,20 @@ const IEPBuilder = () => {
       return false;
     }
 
+    const goalWarning = validateGoals
+      ? iepData.goals.flatMap(getGoalWarnings)[0]
+      : null;
+    if (goalWarning) {
+      toast(`Goal warning: ${goalWarning}`, { icon: "!" });
+    }
+
     return true;
   };
 
   const handleSave = async ({ completeCurrentSection = true } = {}) => {
-    if (!validateBeforeSave()) return false;
+    if (!validateBeforeSave(completeCurrentSection && activeSection >= 2)) {
+      return false;
+    }
 
     const nextCompletedSections = completeCurrentSection
       ? getCompletedWith(activeSection)
@@ -729,10 +763,27 @@ const IEPBuilder = () => {
 
       <main className="flex-1 overflow-y-auto bg-base-200 p-4 sm:p-6 xl:p-8 pb-24">
         <div className="mx-auto max-w-7xl space-y-6">
+          <div className="rounded-xl border border-base-300 bg-base-100 px-5 py-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wider text-primary">
+              Step {activeSection + 1} of {sections.length}
+            </p>
+            <p className="mt-1 text-lg font-bold">
+              {sections[activeSection].title}
+            </p>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-base-200">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{
+                  width: `${((activeSection + 1) / sections.length) * 100}%`,
+                }}
+              />
+            </div>
+          </div>
+
           {activeSection === 0 && (
             <SectionWrapper
-              title="Student Information"
-              description="Link the IEP to a student and confirm basic profile details."
+              title="Choose a Student"
+              description="Select a learner profile, then confirm the IEP dates before continuing."
             >
               <SelectInput
                 label="Linked Student"
@@ -839,7 +890,8 @@ const IEPBuilder = () => {
           {activeSection === 1 && (
             <SectionWrapper
               title="Present Levels (PLAAFP)"
-              description="Capture current performance, strengths, needs, and classroom impact."
+              description="Describe what the student can currently do, what they struggle with, and what support they need."
+              example="Example: Juan can recognize basic sight words but needs support reading short passages and answering comprehension questions."
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <Input
@@ -879,7 +931,7 @@ const IEPBuilder = () => {
                 placeholder="Describe how the disability affects progress in the general curriculum."
               />
 
-              <div className="overflow-hidden rounded-md border border-gray-300 border-success/30 bg-base-100">
+              <div className="overflow-hidden rounded-xl border border-base-300 bg-base-100">
                 <div className="space-y-3 p-5">
                   <TextAreaInput
                     label="Draft PLAAFP"
@@ -901,7 +953,8 @@ const IEPBuilder = () => {
           {activeSection === 2 && (
             <SectionWrapper
               title="Annual Goals"
-              description="Write measurable SMART goals for the IEP period."
+              description="Write a measurable goal the student can work toward within the school year."
+              example="Tip: Include the target date, condition, observable skill, success criteria, and measurement method."
             >
               <div className="flex justify-end">
                 <Button
@@ -921,93 +974,41 @@ const IEPBuilder = () => {
               >
                 <div className="space-y-4">
                   {iepData.goals.map((goal, index) => (
-                    <div
+                    <GoalBuilderCard
                       key={goal.id}
-                      className="card card-compact bg-base-100 border border-base-300 p-4"
-                    >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <h3 className="text-sm font-semibold">
-                          Goal {index + 1}
-                        </h3>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-xs btn-square text-error"
-                          onClick={() => removeGoal(goal.id)}
-                          disabled={iepData.goals.length === 1}
-                          title="Remove goal"
-                        >
-                          <Trash2 size={20} />
-                        </button>
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-2 mb-2">
-                        <CreatableSelectInput
-                          label="Goal area"
-                          value={goal.area}
-                          onChange={(value) =>
-                            updateGoal(goal.id, "area", value)
-                          }
-                          options={goalAreas}
-                          styles={selectStyles}
-                          className="w-full"
-                          placeholder="Select or type to create"
-                        />
-
-                        <Input
-                          label="Target date"
-                          type="date"
-                          value={goal.date}
-                          onChange={(event) =>
-                            updateGoal(goal.id, "date", event.target.value)
-                          }
-                        />
-                      </div>
-                      <div className="mb-2">
-                        <TextAreaInput
-                          label="SMART goal"
-                          value={goal.description}
-                          onChange={(value) =>
-                            updateGoal(goal.id, "description", value)
-                          }
-                          placeholder="By [date], given [condition], the student will [behavior] with [criteria] as measured by [method]."
-                          rows={3}
-                        />
-                      </div>
-
-                      <div className="grid gap-4 md:grid-cols-3">
-                        <Input
-                          label="Criteria (%)"
-                          type="number"
-                          value={String(goal.accuracy || "").replace(
-                            /[^\d.]/g,
-                            "",
-                          )}
-                          onChange={(event) =>
-                            updateGoal(goal.id, "accuracy", event.target.value)
-                          }
-                          min="0"
-                          max="100"
-                          step="1"
-                        />
-                        <SelectInput
-                          label="Sessions"
-                          value={goal.sessions}
-                          onChange={(value) =>
-                            updateGoal(goal.id, "sessions", value)
-                          }
-                          options={sessionOptions}
-                          placeholder="Select sessions"
-                        />
-                        <SelectInput
-                          label="Measurement"
-                          value={goal.measurement}
-                          onChange={(value) =>
-                            updateGoal(goal.id, "measurement", value)
-                          }
-                          options={measurementOptions}
-                          placeholder="Select measurement"
-                        />
-                      </div>
-                    </div>
+                      goal={normalizeGoal(goal)}
+                      index={index}
+                      totalGoals={iepData.goals.length}
+                      isExpanded={expandedGoalId === goal.id}
+                      onEdit={() => setExpandedGoalId(goal.id)}
+                      onRemove={() => removeGoal(goal.id)}
+                      onChange={(field, value) =>
+                        updateGoal(goal.id, field, value)
+                      }
+                      onAreaChange={(area) => updateGoalArea(goal.id, area)}
+                      onAnnualChange={(field, value) =>
+                        updateAnnualGoal(goal.id, field, value)
+                      }
+                      onAddObjective={() => addObjective(goal.id)}
+                      onUpdateObjective={(objectiveId, field, value) =>
+                        updateObjective(goal.id, objectiveId, field, value)
+                      }
+                      onRemoveObjective={(objectiveId) =>
+                        removeObjective(goal.id, objectiveId)
+                      }
+                      onToggleSupport={(support) =>
+                        toggleGoalSupport(goal.id, support)
+                      }
+                      onDone={() => {
+                        const warning = getGoalWarnings(goal)[0];
+                        if (warning) {
+                          toast.error(warning);
+                          return;
+                        }
+                        setExpandedGoalId(null);
+                        toast.success("Goal ready");
+                      }}
+                    />
                   ))}
                   <Button
                     variant="ghost"
@@ -1035,7 +1036,7 @@ const IEPBuilder = () => {
           {activeSection === 3 && (
             <SectionWrapper
               title="Accommodations & Modifications"
-              description="Select the supports the student needs to access instruction."
+              description="Select or describe supports that help the student access lessons and activities."
             >
               <AccommodationGroup
                 title="Presentation accommodations"
@@ -1078,7 +1079,7 @@ const IEPBuilder = () => {
           {activeSection === 4 && (
             <SectionWrapper
               title="Special Education Services"
-              description="Define the services, frequency, setting, and provider."
+              description="Identify who will support the student, where support happens, and how often it is provided."
             >
               {iepData.services.map((service, index) => (
                 <div
@@ -1163,8 +1164,9 @@ const IEPBuilder = () => {
 
           {activeSection === 5 && (
             <SectionWrapper
-              title="Progress Monitoring Plan"
-              description="Document how progress will be collected and reported."
+              title="Review, Progress Monitoring & Export"
+              description="Choose how the teacher will check if the student is improving, then review and save the IEP."
+              example="Use Print / PDF or Export Word in the left panel after saving the completed IEP."
             >
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <SelectInput
@@ -1218,13 +1220,13 @@ const IEPBuilder = () => {
             </SectionWrapper>
           )}
 
-          <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border border-gray-300 bg-info px-4 py-3 shadow-md">
+          <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-base-300 bg-base-100 px-4 py-3 shadow-md">
             <Button
               variant="ghost"
               disabled={activeSection === 0}
               onClick={() => setActiveSection((section) => section - 1)}
             >
-              Previous "Baguhin nalang kulay"
+              Back
             </Button>
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => markSectionDone(activeSection)}>
@@ -1238,11 +1240,11 @@ const IEPBuilder = () => {
                     if (saved) setActiveSection((section) => section + 1);
                   }}
                 >
-                  Save Section & Continue
+                  Save Draft & Next
                 </Button>
               ) : (
                 <Button onClick={() => handleSave()} loading={isSaving}>
-                  <Save size={16} /> Save IEP
+                  <Save size={16} /> Review & Save IEP
                 </Button>
               )}
             </div>
@@ -1253,13 +1255,372 @@ const IEPBuilder = () => {
   );
 };
 
-const SectionWrapper = ({ title, description, children }) => (
-  <section className="space-y-4">
+const SectionWrapper = ({ title, description, example, children }) => (
+  <section className="space-y-4 rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm sm:p-6">
     <div>
       <h2 className="text-2xl font-bold">{title}</h2>
-      <p className="mt-1 text-sm text-base-content/60 mb-6">{description}</p>
+      <p className="mt-1 text-sm leading-6 text-base-content/60">{description}</p>
+      {example && (
+        <p className="mt-3 rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm leading-6 text-base-content/70">
+          {example}
+        </p>
+      )}
     </div>
     {children}
+  </section>
+);
+
+const GoalBuilderCard = ({
+  goal,
+  index,
+  totalGoals,
+  isExpanded,
+  onEdit,
+  onRemove,
+  onChange,
+  onAreaChange,
+  onAnnualChange,
+  onAddObjective,
+  onUpdateObjective,
+  onRemoveObjective,
+  onToggleSupport,
+  onDone,
+}) => {
+  if (!isExpanded) {
+    return (
+      <article className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
+                {goal.area || `Goal ${index + 1}`}
+              </span>
+              <span className="badge badge-outline">{goal.status}</span>
+            </div>
+            <p className="mt-3 text-sm font-semibold leading-6">
+              {getGoalStatement(goal)}
+            </p>
+            <div className="mt-4 grid gap-2 text-xs text-base-content/60 sm:grid-cols-3">
+              <span>
+                <strong className="text-base-content/80">Progress:</strong>{" "}
+                {goal.progressPercentage}%
+              </span>
+              <span>
+                <strong className="text-base-content/80">Monitoring:</strong>{" "}
+                {goal.measurementMethod || "Not set"}
+                {goal.measurementFrequency
+                  ? ` / ${goal.measurementFrequency}`
+                  : ""}
+              </span>
+              <span>
+                <strong className="text-base-content/80">Objectives:</strong>{" "}
+                {goal.objectives.length}
+              </span>
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button size="sm" variant="secondary" icon={Pencil} onClick={onEdit}>
+              Edit
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={Trash2}
+              disabled={totalGoals === 1}
+              onClick={onRemove}
+            >
+              Remove
+            </Button>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  const warnings = getGoalWarnings(goal);
+
+  return (
+    <article className="space-y-6 rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm sm:p-6">
+      <div className="flex items-start justify-between gap-3 border-b border-base-300 pb-4">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-primary">
+            Guided Goal Builder
+          </p>
+          <h3 className="mt-1 text-lg font-bold">Goal {index + 1}</h3>
+        </div>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm text-error"
+          onClick={onRemove}
+          disabled={totalGoals === 1}
+        >
+          <Trash2 className="h-5 w-5" /> Remove
+        </button>
+      </div>
+
+      <GoalSection letter="A" title="Area of Need">
+        <SelectInput
+          label="Area"
+          value={goal.area}
+          onChange={onAreaChange}
+          options={goalAreas}
+          placeholder="Choose an area of need"
+        />
+        {goal.area && (
+          <p className="text-xs leading-5 text-base-content/55">
+            A suggested template has filled empty goal fields. Every suggestion
+            remains editable.
+          </p>
+        )}
+      </GoalSection>
+
+      <GoalSection
+        letter="B"
+        title="Current Performance"
+        helper="Describe what the student can currently do and what support they need."
+      >
+        <TextAreaInput
+          label="What can the student currently do?"
+          value={goal.currentPerformance}
+          onChange={(value) => onChange("currentPerformance", value)}
+          placeholder="Describe current skills using recent classroom evidence."
+          rows={3}
+        />
+        <TextAreaInput
+          label="What difficulty or need should this goal address?"
+          value={goal.need}
+          onChange={(value) => onChange("need", value)}
+          placeholder="Explain the skill gap and support needed."
+          rows={3}
+        />
+        <div className="grid gap-4 md:grid-cols-2">
+          <Input
+            label="Baseline score or observation"
+            value={goal.baselineValue}
+            onChange={(event) => onChange("baselineValue", event.target.value)}
+            placeholder="e.g., 4/10 questions or 3 prompts"
+          />
+          <SelectInput
+            label="Baseline method"
+            value={goal.baselineMethod}
+            onChange={(value) => onChange("baselineMethod", value)}
+            options={measurementMethods}
+            placeholder="How was baseline measured?"
+          />
+        </div>
+      </GoalSection>
+
+      <GoalSection
+        letter="C"
+        title="Annual Goal Builder"
+        helper="Make the goal measurable. Include what the student will do, under what condition, and how success will be measured."
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <Input
+            label="Timeframe"
+            value={goal.annualGoal.timeframe}
+            onChange={(event) => onAnnualChange("timeframe", event.target.value)}
+            placeholder="By the end of the school year"
+          />
+          <Input
+            label="Criteria"
+            value={goal.annualGoal.criteria}
+            onChange={(event) => onAnnualChange("criteria", event.target.value)}
+            placeholder="with 80% accuracy in 4 out of 5 trials"
+          />
+        </div>
+        <TextAreaInput
+          label="Condition"
+          value={goal.annualGoal.condition}
+          onChange={(value) => onAnnualChange("condition", value)}
+          placeholder="Given a short reading passage and visual prompts"
+          rows={2}
+        />
+        <TextAreaInput
+          label="Behavior / Skill"
+          value={goal.annualGoal.behavior}
+          onChange={(value) => onAnnualChange("behavior", value)}
+          placeholder="answer comprehension questions"
+          rows={2}
+        />
+        <div className="rounded-xl border border-primary/15 bg-primary/5 p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-primary">
+            Goal Preview
+          </p>
+          <p className="mt-2 text-sm font-semibold leading-6">
+            {goal.generatedGoalText ||
+              "Complete the fields above to generate the annual goal sentence."}
+          </p>
+        </div>
+      </GoalSection>
+
+      <GoalSection letter="D" title="Short-Term Objectives">
+        {goal.objectives.length ? (
+          <div className="space-y-3">
+            {goal.objectives.map((objective, objectiveIndex) => (
+              <div
+                key={objective.id}
+                className="rounded-xl border border-base-300 bg-base-200/40 p-4"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="text-sm font-semibold">
+                    Objective {objectiveIndex + 1}
+                  </h4>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-xs text-error"
+                    onClick={() => onRemoveObjective(objective.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
+                <TextAreaInput
+                  label="Objective description"
+                  value={objective.description}
+                  onChange={(value) =>
+                    onUpdateObjective(objective.id, "description", value)
+                  }
+                  rows={2}
+                />
+                <div className="mt-3 grid gap-4 md:grid-cols-2">
+                  <Input
+                    label="Success criteria"
+                    value={objective.criteria}
+                    onChange={(event) =>
+                      onUpdateObjective(
+                        objective.id,
+                        "criteria",
+                        event.target.value,
+                      )
+                    }
+                    placeholder="e.g., 70% accuracy"
+                  />
+                  <SelectInput
+                    label="Status"
+                    value={objective.status}
+                    onChange={(value) =>
+                      onUpdateObjective(objective.id, "status", value)
+                    }
+                    options={objectiveStatuses}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-xl border border-dashed border-base-300 p-4 text-center text-sm text-base-content/60">
+            No short-term objectives added yet.
+          </p>
+        )}
+        <Button size="sm" variant="secondary" icon={Plus} onClick={onAddObjective}>
+          Add Objective
+        </Button>
+      </GoalSection>
+
+      <GoalSection
+        letter="E"
+        title="Progress Monitoring"
+        helper="Choose how the teacher will check if the student is improving."
+      >
+        <div className="grid gap-4 md:grid-cols-3">
+          <SelectInput
+            label="Measurement method"
+            value={goal.measurementMethod}
+            onChange={(value) => onChange("measurementMethod", value)}
+            options={measurementMethods}
+            placeholder="Choose a method"
+          />
+          <SelectInput
+            label="Frequency"
+            value={goal.measurementFrequency}
+            onChange={(value) => onChange("measurementFrequency", value)}
+            options={measurementFrequencies}
+            placeholder="Choose frequency"
+          />
+          <SelectInput
+            label="Reporting schedule"
+            value={goal.progressReportingSchedule}
+            onChange={(value) => onChange("progressReportingSchedule", value)}
+            options={reportingSchedules}
+            placeholder="Choose schedule"
+          />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <SelectInput
+            label="Goal status"
+            value={goal.status}
+            onChange={(value) => onChange("status", value)}
+            options={goalStatuses}
+          />
+          <Input
+            label="Progress percentage"
+            type="number"
+            min="0"
+            max="100"
+            value={goal.progressPercentage}
+            onChange={(event) =>
+              onChange("progressPercentage", Number(event.target.value))
+            }
+          />
+        </div>
+      </GoalSection>
+
+      <GoalSection letter="F" title="Supports / Accommodations">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {commonSupports.map((support) => {
+            const selected = goal.supports.includes(support);
+            return (
+              <button
+                key={support}
+                type="button"
+                onClick={() => onToggleSupport(support)}
+                className={`rounded-xl border p-3 text-left text-sm font-medium transition-colors ${
+                  selected
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-base-300 hover:bg-base-200"
+                }`}
+              >
+                {support}
+              </button>
+            );
+          })}
+        </div>
+      </GoalSection>
+
+      {warnings.length > 0 && (
+        <div className="rounded-xl border border-warning/25 bg-warning/5 p-4">
+          <p className="text-sm font-semibold text-warning">
+            Complete these items before finishing the goal:
+          </p>
+          <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-base-content/70">
+            {warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <Button onClick={onDone}>Finish Goal</Button>
+      </div>
+    </article>
+  );
+};
+
+const GoalSection = ({ letter, title, helper, children }) => (
+  <section className="space-y-4">
+    <div className="flex gap-3">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-black text-primary">
+        {letter}
+      </span>
+      <div>
+        <h4 className="font-bold">{title}</h4>
+        {helper && (
+          <p className="mt-1 text-sm leading-6 text-base-content/60">{helper}</p>
+        )}
+      </div>
+    </div>
+    <div className="space-y-4 pl-0 sm:pl-10">{children}</div>
   </section>
 );
 
@@ -1313,20 +1674,20 @@ const GoalBankPicker = ({
                 {goal.area || "General"}
               </span>
               <span className="badge badge-ghost">
-                {goal.gradeBand || "All grades"}
+                {goal.difficulty}
               </span>
-              {goal.source === "custom" && (
+              {goal.isCustom && (
                 <span className="badge badge-primary">Custom</span>
               )}
             </div>
             <div className="space-y-3">
               <div className="min-w-0">
-                <h4 className="text-sm font-semibold">{goal.title}</h4>
+                <h4 className="text-sm font-semibold">{goal.skillFocus}</h4>
                 <p className="mt-1 line-clamp-3 text-sm leading-relaxed text-base-content/70">
-                  {goal.description}
+                  {goal.goalText}
                 </p>
                 <p className="mt-2 line-clamp-1 text-xs text-base-content/55">
-                  {goal.measurement || "Measurement not set"}
+                  {goal.measurementMethod || "Measurement not set"} / {goal.frequency}
                 </p>
               </div>
               <Button
@@ -1334,7 +1695,7 @@ const GoalBankPicker = ({
                 className="btn-ghost w-full justify-center"
                 onClick={() => onAddGoal(goal)}
               >
-                <Plus size={14} /> Add to goals
+                <Plus size={14} /> Use Template
               </Button>
             </div>
           </article>
@@ -1364,13 +1725,13 @@ const AccommodationGroup = ({ title, items, selected, onToggle }) => (
             className={`flex items-center gap-3 rounded-lg border p-3 text-left text-sm transition-colors ${
               isChecked
                 ? "border-success/30 bg-success/10"
-                : "border-gray-300 bg-base-100 hover:bg-base-200"
+                : "border-base-300 bg-base-100 hover:bg-base-200"
             }`}
           >
             <span
               className={`flex h-5 w-5 shrink-0 items-center justify-center rounded ${
                 isChecked
-                  ? "bg-success text-primary-content"
+                  ? "bg-success text-success-content"
                   : "border-2 border-base-300"
               }`}
             >

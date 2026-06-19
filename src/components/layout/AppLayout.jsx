@@ -4,7 +4,6 @@ import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Breadcrumb from "./Breadcrumb";
 import QuickSearch from "./QuickSearch";
-import ThemeSwitcher from "../common/ThemeSwitcher";
 import { Menu, Search } from "lucide-react";
 
 const AppLayout = () => {
@@ -30,21 +29,21 @@ const AppLayout = () => {
   }, [isSidebarOpen]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-base-200">
       {/* Sidebar */}
       <div
         className={`
-        transition-all duration-300 border-r border-base-300
-        ${isSidebarOpen ? "w-60" : "w-0"}
+        shrink-0 overflow-hidden transition-all duration-300
+        ${isSidebarOpen ? "w-64" : "w-0"}
       `}
       >
         {isSidebarOpen && <Sidebar onClose={() => setIsSidebarOpen(false)} />}
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top Bar */}
-        <header className="h-12 border-b border-base-300 flex items-center justify-between px-4 bg-base-100">
+        <header className="flex h-14 items-center justify-between border-b border-base-300 bg-base-100/95 px-4 backdrop-blur">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -58,18 +57,17 @@ const AppLayout = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="btn btn-ghost btn-sm gap-2 p-4"
+              className="btn btn-ghost btn-sm gap-2 rounded-xl px-3"
             >
               <Search />
               Search
             </button>
-            <ThemeSwitcher />
           </div>
         </header>
 
         {/* Scrollable Content */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="w-full min-h-full px-6 py-6 lg:px-8">
+        <main className="flex-1 overflow-y-auto bg-base-200">
+          <div className="mx-auto min-h-full w-full max-w-[1600px] px-5 py-6 lg:px-8 lg:py-8">
             <Outlet />
           </div>
         </main>

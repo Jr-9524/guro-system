@@ -6,6 +6,7 @@ import {
   FileText,
   Plus,
   Printer,
+  Target,
   TrendingUp,
   Users,
 } from "lucide-react";
@@ -13,11 +14,17 @@ import Button from "../components/common/Button";
 import LoadingSpinner from "../components/common/LoadingSpinner";
 import Panel from "../components/common/Panel";
 import Stat from "../components/common/Stat";
+import SectionTabs from "../components/common/SectionTabs";
 import iepService from "../services/iepService";
 import studentService from "../services/studentService";
 import { formatDate } from "../utils/dateUtils";
 import { getIepStudentName } from "../utils/studentUtils";
 import { getCompletionPercent, getComplianceIssues } from "../utils/iepUtils";
+import {
+  getGoalStatement,
+  normalizeGoal,
+  summarizeGoalProgress,
+} from "../utils/goalUtils";
 
 const reportConfig = {
   overview: {
@@ -153,25 +160,21 @@ const Reports = ({ view = "overview" }) => {
 };
 
 const ReportTabs = ({ activeView }) => {
-  const tabs = [
-    { view: "overview", label: "Overview", href: "/reports" },
-    { view: "progress", label: "Progress", href: "/reports/progress" },
-    { view: "compliance", label: "Compliance", href: "/reports/compliance" },
-    { view: "analytics", label: "Analytics", href: "/reports/analytics" },
-  ];
-
   return (
-    <div className="tabs tabs-boxed w-fit">
-      {tabs.map((tab) => (
-        <Link
-          key={tab.view}
-          to={tab.href}
-          className={`tab ${activeView === tab.view ? "tab-active" : ""}`}
-        >
-          {tab.label}
-        </Link>
-      ))}
-    </div>
+    <SectionTabs
+      label="Report views"
+      activeId={activeView}
+      items={[
+        { id: "overview", label: "Overview", href: "/reports" },
+        { id: "progress", label: "Progress", href: "/reports/progress" },
+        {
+          id: "compliance",
+          label: "Compliance",
+          href: "/reports/compliance",
+        },
+        { id: "analytics", label: "Analytics", href: "/reports/analytics" },
+      ]}
+    />
   );
 };
 
@@ -212,51 +215,106 @@ const OverviewReport = ({ students, ieps, data }) => (
   </div>
 );
 
-const ProgressReport = ({ ieps }) => (
-  <Panel title="Goal Progress Summary">
-    {ieps.length ? (
-      <div className="space-y-3">
-        {ieps.map((iep) => (
-          <div
-            key={iep.id}
-            className="rounded-lg border border-gray-300 bg-base-100 p-4"
-          >
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="font-semibold">{iep.title}</p>
-                <p className="text-sm text-base-content/60">
-                  {getIepStudentName(iep) || "No student name"}
-                </p>
-              </div>
-              <span className="badge badge-outline">
-                {getCompletionPercent(iep)}% complete
-              </span>
-            </div>
-            <div className="space-y-2">
-              {(iep.data?.goals || []).map((goal) => (
-                <div
-                  key={goal.id}
-                  className="rounded-md bg-base-200 p-3 text-sm"
-                >
-                  <p className="font-medium">{goal.area || "Goal"}</p>
-                  <p className="mt-1 text-base-content/70">
-                    {goal.description || "No goal description yet."}
-                  </p>
-                  <p className="mt-2 text-xs text-base-content/50">
-                    Criteria: {goal.accuracy || "Not set"} | Measurement:{" "}
-                    {goal.measurement || "Not set"}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+const ProgressReport = ({ ieps }) => {
+  const summary = summarizeGoalProgress(ieps);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <Stat label="Goals" value={summary.total} icon={Target} />
+        <Stat
+          label="Completed"
+          value={summary.completed}
+          icon={CheckCircle2}
+          variant="success"
+        />
+        <Stat
+          label="In Progress"
+          value={summary.inProgress}
+          icon={TrendingUp}
+        />
+        <Stat
+          label="Needs Attention"
+          value={summary.needsAttention}
+          icon={AlertTriangle}
+          variant="warning"
+        />
       </div>
-    ) : (
-      <EmptyReport message="No IEP goals available yet." />
-    )}
-  </Panel>
-);
+
+      <Panel title="Progress by Area">
+        {summary.byArea.length ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            {summary.byArea.map((area) => (
+              <div
+                key={area.area}
+                className="rounded-xl border border-base-300 p-3"
+              >
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold">{area.area}</span>
+                  <span className="text-base-content/60">
+                    {area.progress}% / {area.total} goals
+                  </span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-base-200">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{ width: `${Math.min(area.progress, 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyReport message="No goal progress is available by area yet." />
+        )}
+      </Panel>
+
+      <Panel title="Goal Progress Summary">
+        {ieps.length ? (
+          <div className="space-y-3">
+            {ieps.map((iep) => (
+              <div
+                key={iep.id}
+                className="rounded-lg border border-gray-300 bg-base-100 p-4"
+              >
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-semibold">{iep.title}</p>
+                    <p className="text-sm text-base-content/60">
+                      {getIepStudentName(iep) || "No student name"}
+                    </p>
+                  </div>
+                  <span className="badge badge-outline">
+                    {getCompletionPercent(iep)}% complete
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {(iep.data?.goals || []).map(normalizeGoal).map((goal) => (
+                    <div
+                      key={goal.id}
+                      className="rounded-md bg-base-200 p-3 text-sm"
+                    >
+                      <p className="font-medium">{goal.area || "Goal"}</p>
+                      <p className="mt-1 text-base-content/70">
+                        {getGoalStatement(goal)}
+                      </p>
+                      <p className="mt-2 text-xs text-base-content/50">
+                        {goal.status} | {goal.progressPercentage}% |{" "}
+                        {goal.measurementMethod || "Measurement not set"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyReport message="No IEP goals available yet." />
+        )}
+      </Panel>
+    </div>
+  );
+};
 
 const ComplianceReport = ({ items }) => (
   <Panel title="Compliance Checklist">

@@ -1,34 +1,39 @@
+import { guroStat } from "../../styles/guroStyles";
+
 const Stat = ({
+  title,
   label,
   value,
+  note,
   helper,
   icon: Icon,
+  variant = "blue",
   className = "",
-  iconClassName = "text-base-content",
-}) => (
-  <div
-    className={`rounded-md border border-base-300 bg-base-100 p-4 ${className}`}
-  >
-    <div className="flex items-center justify-between gap-3">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-wide text-base-content/50">
-          {label}
-        </p>
-        <p className="mt-1 text-3xl font-bold">{value}</p>
-        {helper && (
-          <p className="mt-1 text-sm text-base-content/60">{helper}</p>
+}) => {
+  const variantClass = guroStat.variants[variant] || guroStat.variants.blue;
+
+  return (
+    <div className={`${guroStat.card} ${className}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className={guroStat.title}>{title || label}</p>
+          <h3 className={guroStat.value}>{value}</h3>
+
+          {(note || helper) && (
+            <p className={`${guroStat.note} ${variantClass.note}`}>
+              {note || helper}
+            </p>
+          )}
+        </div>
+
+        {Icon && (
+          <div className={`${guroStat.iconBox} ${variantClass.iconBox}`}>
+            <Icon className={`h-6 w-6 ${variantClass.icon}`} />
+          </div>
         )}
       </div>
-
-      {Icon && (
-        <div
-          className={`flex shrink-0 items-center justify-center ${iconClassName}`}
-        >
-          <Icon className="h-8 w-8" />
-        </div>
-      )}
     </div>
-  </div>
-);
+  );
+};
 
 export default Stat;

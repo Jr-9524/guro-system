@@ -1,218 +1,122 @@
-// src/components/layout/Sidebar.jsx
-import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import useAuthStore from "../../stores/authStore";
 import {
-  LayoutDashboard,
-  Bell,
-  History,
-  Search,
-  Settings,
-  PersonStanding,
-  ClipboardList,
-  Calendar,
-  CircleCheck,
-  Notebook,
-  Archive,
   Activity,
-  ChartNoAxesCombined,
-  ClipboardPen,
-  ChartColumnIncreasing,
+  ClipboardList,
+  FileBarChart,
+  LayoutDashboard,
   LogOut,
+  PersonStanding,
   Plus,
+  Settings,
   X,
 } from "lucide-react";
+
+const navItems = [
+  ["/dashboard", "Dashboard", LayoutDashboard],
+  ["/students", "Students", PersonStanding],
+  ["/iep/active", "IEPs", ClipboardList],
+  ["/progress", "Progress", Activity],
+  ["/reports", "Reports", FileBarChart],
+  ["/settings", "Settings", Settings],
+];
 
 const Sidebar = ({ onClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
-  const [isStudentsOpen, setIsStudentsOpen] = useState(true);
-  const [isIEPsOpen, setIsIEPsOpen] = useState(true);
-  const [isReportsOpen, setIsReportsOpen] = useState(false);
-
-  const menuItem = (href, label, icon, isActive = false) => (
-    <Link
-      to={href}
-      draggable={false}
-      className={`
-      flex items-center gap-2 px-3 py-1.5 rounded-md text-sm
-      transition-colors group select-none
-      ${
-        isActive || location.pathname === href
-          ? "bg-base-200 font-medium"
-          : "hover:bg-base-200"
-      }
-    `}
-      onClick={() => {
-        if (window.innerWidth < 768) onClose();
-      }}
-    >
-      <span className="text-base pointer-events-none">{icon}</span>
-      <span className="flex-1">{label}</span>
-      {isActive && (
-        <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
-      )}
-    </Link>
-  );
+  const isCurrentPath = (href) => {
+    if (href === "/iep/active") {
+      return location.pathname.startsWith("/iep/") || location.pathname === "/goals";
+    }
+    if (href === "/reports") return location.pathname.startsWith("/reports");
+    return location.pathname === href;
+  };
 
   return (
-    <div className="h-full flex flex-col bg-base-100">
-      {/* Workspace Header */}
-      <div className="p-3 border-b border-base-300">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="font-bold text-lg">GURO</h1>
-
+    <aside className="flex h-full flex-col border-r border-base-300 bg-base-100 text-base-content">
+      <div className="border-b border-base-300 px-4 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary font-black text-primary-content shadow-sm">
+              G
+            </div>
+            <div>
+              <h1 className="text-lg font-black tracking-[0.16em]">GURO</h1>
+              <p className="text-[10px] font-semibold tracking-wider text-base-content/50">
+                IEP MANAGEMENT
+              </p>
+            </div>
+          </div>
           <button
+            type="button"
             onClick={onClose}
             className="btn btn-ghost btn-xs btn-square md:hidden"
+            aria-label="Close sidebar"
           >
             <X size={16} />
           </button>
         </div>
-        <div className="text-xs opacity-70">IEP Management</div>
       </div>
 
-      {/* Scrollable Navigation */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {/* Quick Actions */}
+      <nav className="flex-1 space-y-1 overflow-y-auto p-3" aria-label="Main navigation">
         <button
+          type="button"
           onClick={() => navigate("/iep/new")}
-          className="btn btn-sm border border-base-300 w-full justify-start gap-2 mb-2 px-2.5 "
+          className="btn btn-sm mb-4 w-full justify-start gap-2 rounded-xl border-0 bg-primary px-3 text-primary-content shadow-sm hover:brightness-90"
         >
           <Plus size={16} />
-          New IEP
+          Create IEP
         </button>
 
-        {/* Main Navigation */}
-        <div className="space-y-0.5">
-          {menuItem("/dashboard", "Dashboard", <LayoutDashboard />)}
-          {menuItem("/reminders", "Reminders", <Bell />)}
-          {menuItem("/activity", "Activity", <History />)}
-          {menuItem("/search", "Search", <Search />)}
-          {menuItem("/settings", "Settings", <Settings />)}
-        </div>
+        {navItems.map(([href, label, Icon]) => {
+          const isActive = isCurrentPath(href);
 
-        <div className="divider my-2"></div>
+          return (
+            <Link
+              key={href}
+              to={href}
+              draggable={false}
+              className={`flex select-none items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
+                isActive
+                  ? "bg-primary font-semibold text-primary-content shadow-sm"
+                  : "text-base-content/70 hover:bg-primary/10 hover:text-primary"
+              }`}
+              onClick={() => window.innerWidth < 768 && onClose()}
+            >
+              <Icon className="h-5 w-5 shrink-0" />
+              <span>{label}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
-        {/* Students Section */}
-        <div>
-          <button
-            onClick={() => setIsStudentsOpen(!isStudentsOpen)}
-            className="flex items-center justify-between w-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wider opacity-60 hover:opacity-100"
-          >
-            <span>Students</span>
-            <span>{isStudentsOpen ? "▾" : "▸"}</span>
-          </button>
-
-          {isStudentsOpen && (
-            <div className="space-y-0.5">
-              {menuItem("/students", "All Students", <PersonStanding />)}
-              {/* {menuItem(
-                "/students?view=board",
-                "Board View",
-                <ClipboardList />,
-              )} */}
-              {menuItem("/students?view=calendar", "Calendar", <Calendar />)}
-
-              {/* Recent Students (Favorites)
-              {recentStudents.map((student) => (
-                <Link
-                  key={student.id}
-                  to={`/students/${student.id}`}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm hover:bg-base-200 transition-colors"
-                >
-                  <div className="avatar placeholder">
-                    <div className="bg-neutral-focus text-neutral-content rounded-full w-5 h-5">
-                      <span className="text-xs">{student.firstName?.[0]}</span>
-                    </div>
-                  </div>
-                  <span className="truncate">
-                    {student.firstName} {student.lastName}
-                  </span>
-                </Link>
-              ))} */}
-            </div>
-          )}
-        </div>
-
-        <div className="divider my-2"></div>
-
-        {/* IEPs Section */}
-        <div>
-          <button
-            onClick={() => setIsIEPsOpen(!isIEPsOpen)}
-            className="flex items-center justify-between w-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wider opacity-60 hover:opacity-100"
-          >
-            <span>IEPs</span>
-            <span>{isIEPsOpen ? "▾" : "▸"}</span>
-          </button>
-
-          {isIEPsOpen && (
-            <div className="space-y-0.5">
-              {menuItem("/iep/new", "Quick IEP Writing", <ClipboardList />)}
-              {menuItem("/goals", "Goal Bank", <ClipboardPen />)}
-              {menuItem("/progress", "Progress Monitoring", <Activity />)}
-              {menuItem("/iep/active", "Active IEPs", <CircleCheck />)}
-              {menuItem("/iep/drafts", "Drafts", <Notebook />)}
-              {menuItem("/iep/archive", "Archive", <Archive />)}
-            </div>
-          )}
-        </div>
-
-        <div className="divider my-2"></div>
-
-        {/* Reports Section */}
-        <div>
-          <button
-            onClick={() => setIsReportsOpen(!isReportsOpen)}
-            className="flex items-center justify-between w-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wider opacity-60 hover:opacity-100"
-          >
-            <span>Reports</span>
-            <span>{isReportsOpen ? "▾" : "▸"}</span>
-          </button>
-
-          {isReportsOpen && (
-            <div className="space-y-0.5">
-              {menuItem(
-                "/reports/progress",
-                "Progress Reports",
-                <ChartNoAxesCombined />,
-              )}
-              {menuItem("/reports/compliance", "Compliance", <ClipboardPen />)}
-              {menuItem(
-                "/reports/analytics",
-                "Analytics",
-                <ChartColumnIncreasing />,
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* User Section */}
-      <div className="p-3 border-t border-base-300">
-        <div className="flex items-center gap-2">
-          <div className="avatar placeholder">
-            <div className="bg-base-300 text-base-content rounded-full w-8 h-8 flex items-center justify-center">
-              <span className="text-sm">{user?.fullName?.[0]}</span>
-            </div>
+      <div className="border-t border-base-300 p-3">
+        <div className="flex items-center gap-2 rounded-xl p-1">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-sm font-bold text-primary">
+            {user?.fullName?.[0] || "U"}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{user?.fullName}</p>
-            <p className="text-xs opacity-60">{user?.role}</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">
+              {user?.fullName || "User"}
+            </p>
+            <p className="text-xs capitalize text-base-content/50">
+              {user?.role || "teacher"}
+            </p>
           </div>
           <button
+            type="button"
             onClick={logout}
-            className="btn btn-ghost btn-xs btn-square"
+            className="btn btn-ghost btn-xs btn-square text-base-content/70"
             title="Sign out"
+            aria-label="Sign out"
           >
             <LogOut size={16} />
           </button>
         </div>
       </div>
-    </div>
+    </aside>
   );
 };
 
