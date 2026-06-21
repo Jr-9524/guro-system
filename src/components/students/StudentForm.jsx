@@ -11,31 +11,14 @@ import Button from "../common/Button";
 import Input from "../common/Input";
 import Panel from "../common/Panel";
 import SelectInput from "../forms/SelectInput";
-
-const disabilityCategories = [
-  "Visual Impairment",
-  "Hearing Impairment",
-  "Learning Disability",
-  "Intellectual Disability",
-  "Autism Spectrum Disorder",
-  "Emotional-Behavioral Disorder",
-  "Orthopedic/Physical Handicap",
-  "Speech/Language Disorder",
-  "Cerebral Palsy",
-  "Special Health Problem/Chronic Disease",
-  "Multiple Disabilities",
-];
+import CreatableSelectInput from "../forms/CreatableSelectInput";
+import {
+  communicationModes,
+  disabilityCategories,
+  gradeLevels,
+} from "../../constants/formOptions";
 
 const severityLevels = ["Mild", "Moderate", "Severe", "Profound"];
-const communicationModes = ["Verbal", "Non-verbal", "FSL", "AAC", "Braille"];
-
-const gradeLevels = [
-  { label: "Kindergarten", value: "K" },
-  ...Array.from({ length: 12 }, (_, index) => ({
-    label: `Grade ${index + 1}`,
-    value: String(index + 1),
-  })),
-];
 
 const buildInitialFormData = (student) => ({
   lrn: student?.lrn || "",
@@ -147,7 +130,7 @@ const StudentForm = ({ student, onSuccess, onCancel }) => {
             required
           />
 
-          <SelectInput
+          <CreatableSelectInput
             label="Grade Level"
             value={formData.gradeLevel}
             onChange={(value) => handleChange("gradeLevel", value)}
@@ -259,7 +242,7 @@ const StudentForm = ({ student, onSuccess, onCancel }) => {
               Learning support details used in reports and IEPs.
             </p>
             <div className="grid gap-4 md:grid-cols-3">
-              <SelectInput
+              <CreatableSelectInput
                 label="Primary Disability Category"
                 value={formData.primaryDisabilityCategory}
                 onChange={(value) =>
@@ -277,7 +260,7 @@ const StudentForm = ({ student, onSuccess, onCancel }) => {
                 options={severityLevels}
               />
 
-              <SelectInput
+              <CreatableSelectInput
                 label="Communication Mode"
                 value={formData.communicationMode}
                 onChange={(value) => handleChange("communicationMode", value)}

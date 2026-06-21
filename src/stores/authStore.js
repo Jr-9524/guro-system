@@ -9,7 +9,7 @@ const toClientUser = (user) => ({
   id: user.id,
   username: user.username,
   fullName: user.full_name ?? user.fullName,
-  role: user.role,
+  role: user.role || "teacher",
 });
 
 const persistSession = (user) => {
@@ -26,6 +26,7 @@ const useAuthStore = create((set) => ({
   user: null,
   token: null,
   isAuthenticated: false,
+  isInitialized: false,
   isLoading: false,
   error: null,
 
@@ -56,6 +57,7 @@ const useAuthStore = create((set) => ({
           user: session.user,
           token: session.token,
           isAuthenticated: true,
+          isInitialized: true,
           isLoading: false,
         });
 
@@ -87,6 +89,7 @@ const useAuthStore = create((set) => ({
         user: session.user,
         token: session.token,
         isAuthenticated: true,
+        isInitialized: true,
         isLoading: false,
       });
 
@@ -131,7 +134,7 @@ const useAuthStore = create((set) => ({
         passwordHash,
         fullName: userData.fullName,
         email: userData.email,
-        role: userData.role || "teacher",
+        role: "teacher",
         createdAt: new Date().toISOString(),
       };
 
@@ -150,24 +153,59 @@ const useAuthStore = create((set) => ({
   },
 
   logout: () => {
+    window.electronAPI?.auth?.logout?.().catch(() => {});
     localStorage.removeItem("auth_token");
     localStorage.removeItem("current_user");
     set({
       user: null,
       token: null,
       isAuthenticated: false,
+      isInitialized: true,
     });
   },
 
-  checkAuth: () => {
+  checkAuth: async () => {
     const token = localStorage.getItem("auth_token");
-    const user = JSON.parse(localStorage.getItem("current_user") || "null");
+    const storedUser = JSON.parse(
+      localStorage.getItem("current_user") || "null",
+    );
 
-    if (token && user) {
+    if (!token || !storedUser) {
+      set({ isInitialized: true });
+      return;
+    }
+
+    const clientUser = toClientUser(storedUser);
+    if (!window.electronAPI?.auth?.resume) {
       set({
-        user,
+        user: clientUser,
         token,
         isAuthenticated: true,
+        isInitialized: true,
+      });
+      return;
+    }
+
+    try {
+      const result = await window.electronAPI.auth.resume(clientUser.id);
+      if (!result?.success) throw new Error("Session is no longer valid");
+
+      const resumedUser = toClientUser(result.user);
+      localStorage.setItem("current_user", JSON.stringify(resumedUser));
+      set({
+        user: resumedUser,
+        token,
+        isAuthenticated: true,
+        isInitialized: true,
+      });
+    } catch {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("current_user");
+      set({
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        isInitialized: true,
       });
     }
   },

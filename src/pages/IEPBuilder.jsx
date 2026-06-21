@@ -133,6 +133,8 @@ const defaultIepData = {
   plaaFP: {
     readingLevel: "",
     mathLevel: "",
+    assessmentResults: "",
+    teacherObservations: "",
     strengths: "",
     challenges: "",
     impact: "",
@@ -215,6 +217,9 @@ const IEPBuilder = () => {
   const [iepData, setIepData] = useState(cloneDefaultIepData);
   const [isLoading, setIsLoading] = useState(Boolean(id));
   const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingPlaafp, setIsGeneratingPlaafp] = useState(false);
+  const [isSuggestingGoals, setIsSuggestingGoals] = useState(false);
+  const [aiGoalSuggestions, setAiGoalSuggestions] = useState([]);
   const [customGoalTemplates, setCustomGoalTemplates] = useState([]);
   const [goalBankQuery, setGoalBankQuery] = useState("");
   const [isGoalBankOpen, setIsGoalBankOpen] = useState(false);
@@ -314,6 +319,10 @@ const IEPBuilder = () => {
         setIepData({
           ...cloneDefaultIepData(),
           ...existing.data,
+          plaaFP: {
+            ...cloneDefaultIepData().plaaFP,
+            ...existing.data?.plaaFP,
+          },
           goals: (existing.data?.goals || []).map(normalizeGoal),
         });
         setCompletedSections(existing.completedSections || []);
@@ -457,14 +466,6 @@ const IEPBuilder = () => {
     }));
   };
 
-  const toggleGoalSupport = (goalId, support) => {
-    replaceGoal(goalId, (goal) => ({
-      ...goal,
-      supports: goal.supports.includes(support)
-        ? goal.supports.filter((item) => item !== support)
-        : [...goal.supports, support],
-    }));
-  };
 
   const addGoal = () => {
     const goal = createGoal();
@@ -627,13 +628,141 @@ const IEPBuilder = () => {
     }
   };
 
-  const prepareAiSpace = () => {
-    updatePlaafp(
-      "aiDraft",
-      iepData.plaaFP.aiDraft ||
-        "AI draft placeholder. Connect your AI generation here and write the generated PLAAFP text into this field.",
+  const generatePlaafpDraft = async () => {
+    if (!student?.id) {
+      toast.error("Choose a linked student before generating a PLAAFP draft");
+      return;
+    }
+
+    if (!window.electronAPI?.ai?.generatePlaafp) {
+      toast.error("AI drafting is available in the GURO desktop app");
+      return;
+    }
+
+    setIsGeneratingPlaafp(true);
+    try {
+      const draft = await window.electronAPI.ai.generatePlaafp({
+        studentName,
+        age: iepData.studentInfo.age,
+        gradeLevel: iepData.studentInfo.gradeLevel,
+        disabilityCategory: iepData.studentInfo.disabilityCategory,
+        learningNeeds: iepData.plaaFP.challenges,
+        assessmentResults: iepData.plaaFP.assessmentResults,
+        teacherObservations: iepData.plaaFP.teacherObservations,
+        strengths: iepData.plaaFP.strengths,
+        needs: iepData.plaaFP.challenges,
+        classroomImpact: iepData.plaaFP.impact,
+        currentPerformance: [
+          iepData.plaaFP.readingLevel
+            ? `Reading: ${iepData.plaaFP.readingLevel}`
+            : "",
+          iepData.plaaFP.mathLevel
+            ? `Mathematics: ${iepData.plaaFP.mathLevel}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("; "),
+      });
+
+      updatePlaafp("aiDraft", draft);
+      toast.success("PLAAFP draft generated. Review it before saving.");
+    } catch (error) {
+      toast.error(error.message || "Unable to generate the PLAAFP draft");
+    } finally {
+      setIsGeneratingPlaafp(false);
+    }
+  };
+
+  const suggestGoalsWithAi = async () => {
+    if (!student?.id) {
+      toast.error("Choose a linked student before requesting goal suggestions");
+      return;
+    }
+
+    if (!window.electronAPI?.ai?.suggestGoals) {
+      toast.error("AI goal suggestions are available in the GURO desktop app");
+      return;
+    }
+
+    const selectedGoal = iepData.goals.find(
+      (goal) => goal.id === expandedGoalId,
     );
-    toast.success("AI draft space is ready");
+
+    setIsSuggestingGoals(true);
+    try {
+      const result = await window.electronAPI.ai.suggestGoals({
+        studentName,
+        age: iepData.studentInfo.age,
+        gradeLevel: iepData.studentInfo.gradeLevel,
+        disabilityCategory: iepData.studentInfo.disabilityCategory,
+        learningNeeds: iepData.plaaFP.challenges,
+        assessmentResults: iepData.plaaFP.assessmentResults,
+        teacherObservations: iepData.plaaFP.teacherObservations,
+        strengths: iepData.plaaFP.strengths,
+        needs: iepData.plaaFP.challenges,
+        classroomImpact: iepData.plaaFP.impact,
+        currentPerformance: iepData.goals
+          .map((goal) => normalizeGoal(goal).currentPerformance)
+          .filter(Boolean)
+          .join("\n"),
+        plaafpDraft: iepData.plaaFP.aiDraft,
+        selectedArea:
+          normalizeGoal(selectedGoal).area ||
+          iepData.goals.map(normalizeGoal).find((goal) => goal.area)?.area ||
+          "",
+        existingGoals: iepData.goals
+          .map(normalizeGoal)
+          .filter((goal) => goal.generatedGoalText)
+          .map((goal) => ({
+            area: goal.area,
+            statement: getGoalStatement(goal),
+          })),
+      });
+
+      setAiGoalSuggestions(result.goals || []);
+      toast.success("Goal suggestions are ready for review");
+    } catch (error) {
+      toast.error(error.message || "Unable to suggest goals");
+    } finally {
+      setIsSuggestingGoals(false);
+    }
+  };
+
+  const useAiGoalSuggestion = (suggestion, suggestionIndex) => {
+    const annualGoal = {
+      timeframe: suggestion.annualGoal?.timeframe || "",
+      condition: suggestion.annualGoal?.condition || "",
+      behavior: suggestion.annualGoal?.behavior || "",
+      criteria: suggestion.annualGoal?.criteria || "",
+    };
+    const goal = createGoal({
+      area: suggestion.area || "",
+      currentPerformance: suggestion.currentPerformance || "",
+      need: iepData.plaaFP.challenges || "",
+      annualGoal,
+      generatedGoalText: buildGoalText(annualGoal),
+      objectives: (suggestion.objectives || []).map((objective) =>
+        createObjective({
+          description: objective.description || "",
+          criteria: objective.criteria || "",
+        }),
+      ),
+      measurementMethod: suggestion.measurementMethod || "",
+      measurementFrequency: suggestion.measurementFrequency || "",
+      progressReportingSchedule:
+        suggestion.progressReportingSchedule || "",
+      supports: suggestion.supports || [],
+    });
+
+    setIepData((current) => ({
+      ...current,
+      goals: [...current.goals, goal],
+    }));
+    setExpandedGoalId(goal.id);
+    setAiGoalSuggestions((current) =>
+      current.filter((_, index) => index !== suggestionIndex),
+    );
+    toast.success("Suggested goal added for teacher review");
   };
 
   const getExportTitle = () => `IEP - ${studentName || "Untitled Student"}`;
@@ -764,7 +893,7 @@ const IEPBuilder = () => {
       <main className="flex-1 overflow-y-auto bg-base-200 p-4 sm:p-6 xl:p-8 pb-24">
         <div className="mx-auto max-w-7xl space-y-6">
           <div className="rounded-xl border border-base-300 bg-base-100 px-5 py-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wider text-primary">
+            <p className="text-xs font-bold uppercase tracking-wider text-base-content">
               Step {activeSection + 1} of {sections.length}
             </p>
             <p className="mt-1 text-lg font-bold">
@@ -930,6 +1059,18 @@ const IEPBuilder = () => {
                 onChange={(value) => updatePlaafp("impact", value)}
                 placeholder="Describe how the disability affects progress in the general curriculum."
               />
+              <TextAreaInput
+                label="Assessment results"
+                value={iepData.plaaFP.assessmentResults}
+                onChange={(value) => updatePlaafp("assessmentResults", value)}
+                placeholder="Summarize available classroom, curriculum-based, or formal assessment results."
+              />
+              <TextAreaInput
+                label="Teacher observations"
+                value={iepData.plaaFP.teacherObservations}
+                onChange={(value) => updatePlaafp("teacherObservations", value)}
+                placeholder="Describe observed performance, participation, and support needs."
+              />
 
               <div className="overflow-hidden rounded-xl border border-base-300 bg-base-100">
                 <div className="space-y-3 p-5">
@@ -940,9 +1081,31 @@ const IEPBuilder = () => {
                     placeholder="Generated or manually written PLAAFP text."
                     rows={7}
                   />
+                  <div className="rounded-lg bg-base-200 p-3 text-xs text-base-content/70">
+                    <p className="font-semibold">
+                      AI-generated draft. Please review and edit before saving.
+                    </p>
+                    <p className="mt-1">
+                      AI assists with drafting only. The teacher remains
+                      responsible for reviewing and approving the final IEP
+                      content.
+                    </p>
+                    <p className="mt-1">
+                      An internet connection is required. Only the PLAAFP
+                      context shown above is sent to the configured Groq
+                      service.
+                    </p>
+                  </div>
                   <div className="flex justify-end">
-                    <Button onClick={prepareAiSpace}>
-                      <Sparkles size={18} /> Generate AI PLAAFP
+                    <Button
+                      onClick={generatePlaafpDraft}
+                      loading={isGeneratingPlaafp}
+                      disabled={isGeneratingPlaafp || !student?.id}
+                    >
+                      {!isGeneratingPlaafp && <Sparkles size={18} />}
+                      {isGeneratingPlaafp
+                        ? "Generating draft..."
+                        : "Generate PLAAFP Draft"}
                     </Button>
                   </div>
                 </div>
@@ -956,7 +1119,23 @@ const IEPBuilder = () => {
               description="Write a measurable goal the student can work toward within the school year."
               example="Tip: Include the target date, condition, observable skill, success criteria, and measurement method."
             >
-              <div className="flex justify-end">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <Button
+                    onClick={suggestGoalsWithAi}
+                    loading={isSuggestingGoals}
+                    disabled={isSuggestingGoals || !student?.id}
+                  >
+                    {!isSuggestingGoals && <Sparkles size={18} />}
+                    {isSuggestingGoals
+                      ? "Suggesting goals..."
+                      : "Suggest Goals with AI"}
+                  </Button>
+                  <p className="mt-2 max-w-xl text-xs text-base-content/60">
+                    AI suggests editable goals only. The teacher remains
+                    responsible for reviewing and approving all IEP goals.
+                  </p>
+                </div>
                 <Button
                   className={isGoalBankOpen ? "btn-primary" : "btn-ghost"}
                   onClick={() => setIsGoalBankOpen((isOpen) => !isOpen)}
@@ -964,6 +1143,19 @@ const IEPBuilder = () => {
                   <Search size={16} /> Goal Bank
                 </Button>
               </div>
+
+              {aiGoalSuggestions.length > 0 && (
+                <AiGoalSuggestionPanel
+                  suggestions={aiGoalSuggestions}
+                  onUse={useAiGoalSuggestion}
+                  onDismiss={(suggestionIndex) =>
+                    setAiGoalSuggestions((current) =>
+                      current.filter((_, index) => index !== suggestionIndex),
+                    )
+                  }
+                  onDismissAll={() => setAiGoalSuggestions([])}
+                />
+              )}
 
               <div
                 className={`grid gap-4 ${
@@ -996,17 +1188,15 @@ const IEPBuilder = () => {
                       onRemoveObjective={(objectiveId) =>
                         removeObjective(goal.id, objectiveId)
                       }
-                      onToggleSupport={(support) =>
-                        toggleGoalSupport(goal.id, support)
-                      }
+
                       onDone={() => {
                         const warning = getGoalWarnings(goal)[0];
-                        if (warning) {
-                          toast.error(warning);
-                          return;
-                        }
                         setExpandedGoalId(null);
-                        toast.success("Goal ready");
+                        if (warning) {
+                          toast(`Goal needs review: ${warning}`, { icon: "!" });
+                        } else {
+                          toast.success("Goal ready");
+                        }
                       }}
                     />
                   ))}
@@ -1092,7 +1282,7 @@ const IEPBuilder = () => {
                     </h3>
                     <button
                       type="button"
-                      className="btn btn-ghost btn-xs btn-square text-error"
+                      className="btn btn-ghost btn-xs btn-square text-base-content"
                       onClick={() => removeService(service.id)}
                       disabled={iepData.services.length === 1}
                       title="Remove service"
@@ -1169,7 +1359,7 @@ const IEPBuilder = () => {
               example="Use Print / PDF or Export Word in the left panel after saving the completed IEP."
             >
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <SelectInput
+                <CreatableSelectInput
                   label="Data collection method"
                   value={iepData.progressPlan.dataMethod}
                   onChange={(value) => updateProgressPlan("dataMethod", value)}
@@ -1181,13 +1371,13 @@ const IEPBuilder = () => {
                     "Work sample review",
                   ]}
                 />
-                <SelectInput
+                <CreatableSelectInput
                   label="Collection frequency"
                   value={iepData.progressPlan.frequency}
                   onChange={(value) => updateProgressPlan("frequency", value)}
                   options={["Daily", "2x per week", "Weekly", "Bi-weekly"]}
                 />
-                <SelectInput
+                <CreatableSelectInput
                   label="Parent report schedule"
                   value={iepData.progressPlan.parentReport}
                   onChange={(value) =>
@@ -1209,10 +1399,10 @@ const IEPBuilder = () => {
                 onChange={(value) => updateProgressPlan("notes", value)}
               />
               <div className="rounded-lg border border-success/30 bg-success/10 p-5">
-                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-success">
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-base-content">
                   <Check size={18} /> Ready to save
                 </div>
-                <p className="text-sm text-success/70">
+                <p className="text-sm text-base-content">
                   Mark this section complete and save to move the IEP into
                   Active IEPs.
                 </p>
@@ -1270,6 +1460,126 @@ const SectionWrapper = ({ title, description, example, children }) => (
   </section>
 );
 
+const AiGoalSuggestionPanel = ({
+  suggestions,
+  onUse,
+  onDismiss,
+  onDismissAll,
+}) => (
+  <section className="rounded-xl border border-base-300 bg-base-200/60 p-4">
+    <div className="mb-4 flex items-start justify-between gap-3">
+      <div>
+        <h3 className="font-semibold">AI Goal Suggestions</h3>
+        <p className="mt-1 text-sm text-base-content/60">
+          Review every field before adding a suggestion. Nothing here is saved
+          automatically.
+        </p>
+      </div>
+      <button
+        type="button"
+        className="btn btn-ghost btn-sm btn-square"
+        onClick={onDismissAll}
+        aria-label="Dismiss all goal suggestions"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+
+    <div className="grid gap-3 xl:grid-cols-2">
+      {suggestions.map((suggestion, index) => (
+        <article
+          key={`${suggestion.area || "goal"}-${index}`}
+          className="rounded-lg border border-base-300 bg-base-100 p-4"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span className="badge badge-primary badge-outline">
+              {suggestion.area || "Area not specified"}
+            </span>
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs btn-square"
+              onClick={() => onDismiss(index)}
+              aria-label={`Dismiss ${suggestion.area || "goal"} suggestion`}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <p className="mt-3 font-medium leading-relaxed">
+            {buildGoalText(suggestion.annualGoal) ||
+              "Goal statement needs teacher input."}
+          </p>
+
+          <div className="mt-3 space-y-3 text-sm">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-base-content/50">
+                Current Performance
+              </p>
+              <p className="mt-1 text-base-content/75">
+                {suggestion.currentPerformance || "Not provided"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-base-content/50">
+                Short-Term Objectives
+              </p>
+              {suggestion.objectives?.length ? (
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-base-content/75">
+                  {suggestion.objectives.map((objective, objectiveIndex) => (
+                    <li key={`${objective.description}-${objectiveIndex}`}>
+                      {objective.description || "Objective"}
+                      {objective.criteria ? ` - ${objective.criteria}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-base-content/60">
+                  No objectives suggested.
+                </p>
+              )}
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-semibold text-base-content/50">
+                  Measurement
+                </p>
+                <p>{suggestion.measurementMethod || "Not specified"}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-base-content/50">
+                  Frequency
+                </p>
+                <p>{suggestion.measurementFrequency || "Not specified"}</p>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-base-content/50">
+                Supports
+              </p>
+              <p className="mt-1 text-base-content/75">
+                {suggestion.supports?.length
+                  ? suggestion.supports.join(", ")
+                  : "Not specified"}
+              </p>
+            </div>
+          </div>
+
+          <Button
+            size="sm"
+            className="mt-4 w-full justify-center"
+            onClick={() => onUse(suggestion, index)}
+          >
+            <Plus size={14} /> Use this goal
+          </Button>
+        </article>
+      ))}
+    </div>
+  </section>
+);
+
 const GoalBuilderCard = ({
   goal,
   index,
@@ -1283,16 +1593,17 @@ const GoalBuilderCard = ({
   onAddObjective,
   onUpdateObjective,
   onRemoveObjective,
-  onToggleSupport,
   onDone,
 }) => {
+  const [showAdvancedFields, setShowAdvancedFields] = useState(false);
+
   if (!isExpanded) {
     return (
       <article className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-base-content">
                 {goal.area || `Goal ${index + 1}`}
               </span>
               <span className="badge badge-outline">{goal.status}</span>
@@ -1343,253 +1654,307 @@ const GoalBuilderCard = ({
     <article className="space-y-6 rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm sm:p-6">
       <div className="flex items-start justify-between gap-3 border-b border-base-300 pb-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-primary">
+          <p className="text-xs font-bold uppercase tracking-wider text-base-content">
             Guided Goal Builder
           </p>
           <h3 className="mt-1 text-lg font-bold">Goal {index + 1}</h3>
         </div>
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm text-error"
-          onClick={onRemove}
-          disabled={totalGoals === 1}
-        >
-          <Trash2 className="h-5 w-5" /> Remove
-        </button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setShowAdvancedFields((visible) => !visible)}
+          >
+            {showAdvancedFields
+              ? "Hide Advanced Fields"
+              : "Show Advanced Fields"}
+          </Button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm text-base-content"
+            onClick={onRemove}
+            disabled={totalGoals === 1}
+          >
+            <Trash2 className="h-5 w-5" /> Remove
+          </button>
+        </div>
       </div>
 
-      <GoalSection letter="A" title="Area of Need">
-        <SelectInput
-          label="Area"
+      <section className="space-y-5">
+        <div>
+          <h4 className="font-bold">Essential Goal Information</h4>
+          <p className="mt-1 text-sm text-base-content/60">
+            Start with the fields needed for a clear, measurable goal.
+          </p>
+        </div>
+
+        <CreatableSelectInput
+          label="Area of Need"
           value={goal.area}
           onChange={onAreaChange}
           options={goalAreas}
           placeholder="Choose an area of need"
         />
-        {goal.area && (
-          <p className="text-xs leading-5 text-base-content/55">
-            A suggested template has filled empty goal fields. Every suggestion
-            remains editable.
+
+        <div>
+          <TextAreaInput
+            label="Current Performance"
+            value={goal.currentPerformance}
+            onChange={(value) => onChange("currentPerformance", value)}
+            placeholder="Describe current skills using recent classroom evidence."
+            rows={3}
+          />
+          <p className="mt-1 text-xs text-base-content/55">
+            Describe what the learner can currently do and what support is needed.
           </p>
-        )}
-      </GoalSection>
-
-      <GoalSection
-        letter="B"
-        title="Current Performance"
-        helper="Describe what the student can currently do and what support they need."
-      >
-        <TextAreaInput
-          label="What can the student currently do?"
-          value={goal.currentPerformance}
-          onChange={(value) => onChange("currentPerformance", value)}
-          placeholder="Describe current skills using recent classroom evidence."
-          rows={3}
-        />
-        <TextAreaInput
-          label="What difficulty or need should this goal address?"
-          value={goal.need}
-          onChange={(value) => onChange("need", value)}
-          placeholder="Explain the skill gap and support needed."
-          rows={3}
-        />
-        <div className="grid gap-4 md:grid-cols-2">
-          <Input
-            label="Baseline score or observation"
-            value={goal.baselineValue}
-            onChange={(event) => onChange("baselineValue", event.target.value)}
-            placeholder="e.g., 4/10 questions or 3 prompts"
-          />
-          <SelectInput
-            label="Baseline method"
-            value={goal.baselineMethod}
-            onChange={(value) => onChange("baselineMethod", value)}
-            options={measurementMethods}
-            placeholder="How was baseline measured?"
-          />
         </div>
-      </GoalSection>
 
-      <GoalSection
-        letter="C"
-        title="Annual Goal Builder"
-        helper="Make the goal measurable. Include what the student will do, under what condition, and how success will be measured."
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          <Input
-            label="Timeframe"
-            value={goal.annualGoal.timeframe}
-            onChange={(event) => onAnnualChange("timeframe", event.target.value)}
-            placeholder="By the end of the school year"
+        <div>
+          <TextAreaInput
+            label="Goal Statement"
+            value={goal.generatedGoalText}
+            onChange={(value) => onChange("generatedGoalText", value)}
+            placeholder="Write the measurable annual goal sentence."
+            rows={4}
           />
+          <p className="mt-1 text-xs text-base-content/55">
+            This sentence will appear in the final IEP report.
+          </p>
+        </div>
+
+        {!showAdvancedFields && (
           <Input
-            label="Criteria"
+            label="Success Criteria"
             value={goal.annualGoal.criteria}
-            onChange={(event) => onAnnualChange("criteria", event.target.value)}
+            onChange={(event) =>
+              onChange("annualGoal", {
+                ...goal.annualGoal,
+                criteria: event.target.value,
+              })
+            }
+            helperText="Example: with 80% accuracy in 4 out of 5 trials."
             placeholder="with 80% accuracy in 4 out of 5 trials"
           />
-        </div>
-        <TextAreaInput
-          label="Condition"
-          value={goal.annualGoal.condition}
-          onChange={(value) => onAnnualChange("condition", value)}
-          placeholder="Given a short reading passage and visual prompts"
-          rows={2}
-        />
-        <TextAreaInput
-          label="Behavior / Skill"
-          value={goal.annualGoal.behavior}
-          onChange={(value) => onAnnualChange("behavior", value)}
-          placeholder="answer comprehension questions"
-          rows={2}
-        />
-        <div className="rounded-xl border border-primary/15 bg-primary/5 p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-primary">
-            Goal Preview
-          </p>
-          <p className="mt-2 text-sm font-semibold leading-6">
-            {goal.generatedGoalText ||
-              "Complete the fields above to generate the annual goal sentence."}
-          </p>
-        </div>
-      </GoalSection>
-
-      <GoalSection letter="D" title="Short-Term Objectives">
-        {goal.objectives.length ? (
-          <div className="space-y-3">
-            {goal.objectives.map((objective, objectiveIndex) => (
-              <div
-                key={objective.id}
-                className="rounded-xl border border-base-300 bg-base-200/40 p-4"
-              >
-                <div className="mb-3 flex items-center justify-between">
-                  <h4 className="text-sm font-semibold">
-                    Objective {objectiveIndex + 1}
-                  </h4>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-xs text-error"
-                    onClick={() => onRemoveObjective(objective.id)}
-                  >
-                    Remove
-                  </button>
-                </div>
-                <TextAreaInput
-                  label="Objective description"
-                  value={objective.description}
-                  onChange={(value) =>
-                    onUpdateObjective(objective.id, "description", value)
-                  }
-                  rows={2}
-                />
-                <div className="mt-3 grid gap-4 md:grid-cols-2">
-                  <Input
-                    label="Success criteria"
-                    value={objective.criteria}
-                    onChange={(event) =>
-                      onUpdateObjective(
-                        objective.id,
-                        "criteria",
-                        event.target.value,
-                      )
-                    }
-                    placeholder="e.g., 70% accuracy"
-                  />
-                  <SelectInput
-                    label="Status"
-                    value={objective.status}
-                    onChange={(value) =>
-                      onUpdateObjective(objective.id, "status", value)
-                    }
-                    options={objectiveStatuses}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="rounded-xl border border-dashed border-base-300 p-4 text-center text-sm text-base-content/60">
-            No short-term objectives added yet.
-          </p>
         )}
-        <Button size="sm" variant="secondary" icon={Plus} onClick={onAddObjective}>
-          Add Objective
-        </Button>
-      </GoalSection>
 
-      <GoalSection
-        letter="E"
-        title="Progress Monitoring"
-        helper="Choose how the teacher will check if the student is improving."
-      >
-        <div className="grid gap-4 md:grid-cols-3">
-          <SelectInput
-            label="Measurement method"
+        <div className="grid gap-4 md:grid-cols-2">
+          <CreatableSelectInput
+            label="How Progress Will Be Measured"
             value={goal.measurementMethod}
             onChange={(value) => onChange("measurementMethod", value)}
             options={measurementMethods}
             placeholder="Choose a method"
           />
-          <SelectInput
-            label="Frequency"
+          <CreatableSelectInput
+            label="How Often Progress Will Be Checked"
             value={goal.measurementFrequency}
             onChange={(value) => onChange("measurementFrequency", value)}
             options={measurementFrequencies}
             placeholder="Choose frequency"
           />
-          <SelectInput
-            label="Reporting schedule"
-            value={goal.progressReportingSchedule}
-            onChange={(value) => onChange("progressReportingSchedule", value)}
-            options={reportingSchedules}
-            placeholder="Choose schedule"
-          />
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <SelectInput
-            label="Goal status"
-            value={goal.status}
-            onChange={(value) => onChange("status", value)}
-            options={goalStatuses}
-          />
-          <Input
-            label="Progress percentage"
-            type="number"
-            min="0"
-            max="100"
-            value={goal.progressPercentage}
-            onChange={(event) =>
-              onChange("progressPercentage", Number(event.target.value))
-            }
-          />
-        </div>
-      </GoalSection>
 
-      <GoalSection letter="F" title="Supports / Accommodations">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {commonSupports.map((support) => {
-            const selected = goal.supports.includes(support);
-            return (
-              <button
-                key={support}
-                type="button"
-                onClick={() => onToggleSupport(support)}
-                className={`rounded-xl border p-3 text-left text-sm font-medium transition-colors ${
-                  selected
-                    ? "border-primary/30 bg-primary/10 text-primary"
-                    : "border-base-300 hover:bg-base-200"
-                }`}
-              >
-                {support}
-              </button>
-            );
-          })}
+        <div className="rounded-xl bg-base-200 p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-base-content/50">
+            Goal Preview
+          </p>
+          <p className="mt-2 text-sm font-semibold leading-6">
+            {getGoalStatement(goal)}
+          </p>
         </div>
-      </GoalSection>
+      </section>
+
+      {showAdvancedFields && (
+        <div className="space-y-6 border-t border-base-300 pt-6">
+          <div>
+            <h4 className="text-lg font-bold">Advanced Goal Details</h4>
+            <p className="mt-1 text-sm text-base-content/60">
+              Add baseline evidence, structured goal parts, objectives, supports,
+              and reporting details when needed.
+            </p>
+          </div>
+
+          <GoalSection letter="A" title="Baseline and Identified Need">
+            <TextAreaInput
+              label="Need"
+              value={goal.need}
+              onChange={(value) => onChange("need", value)}
+              placeholder="Explain the skill gap and support needed."
+              rows={3}
+            />
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input
+                label="Baseline Value"
+                value={goal.baselineValue}
+                onChange={(event) =>
+                  onChange("baselineValue", event.target.value)
+                }
+                placeholder="e.g., 4/10 questions or 3 prompts"
+              />
+              <CreatableSelectInput
+                label="Baseline Method"
+                value={goal.baselineMethod}
+                onChange={(value) => onChange("baselineMethod", value)}
+                options={measurementMethods}
+                placeholder="How was baseline measured?"
+              />
+            </div>
+          </GoalSection>
+
+          <GoalSection
+            letter="B"
+            title="Structured Annual Goal"
+            helper="Changing these fields regenerates the Goal Statement above."
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input
+                label="Timeframe"
+                value={goal.annualGoal.timeframe}
+                onChange={(event) =>
+                  onAnnualChange("timeframe", event.target.value)
+                }
+                placeholder="By the end of the school year"
+              />
+              <Input
+                label="Success Criteria"
+                value={goal.annualGoal.criteria}
+                onChange={(event) =>
+                  onAnnualChange("criteria", event.target.value)
+                }
+                helperText="Example: with 80% accuracy in 4 out of 5 trials."
+                placeholder="with 80% accuracy in 4 out of 5 trials"
+              />
+            </div>
+            <TextAreaInput
+              label="Condition"
+              value={goal.annualGoal.condition}
+              onChange={(value) => onAnnualChange("condition", value)}
+              placeholder="Given a short reading passage and visual prompts"
+              rows={2}
+            />
+            <TextAreaInput
+              label="Behavior / Skill"
+              value={goal.annualGoal.behavior}
+              onChange={(value) => onAnnualChange("behavior", value)}
+              placeholder="answer comprehension questions"
+              rows={2}
+            />
+          </GoalSection>
+
+          <GoalSection letter="C" title="Short-Term Objectives">
+            {goal.objectives.length ? (
+              <div className="space-y-3">
+                {goal.objectives.map((objective, objectiveIndex) => (
+                  <div
+                    key={objective.id}
+                    className="rounded-xl border border-base-300 bg-base-200/40 p-4"
+                  >
+                    <div className="mb-3 flex items-center justify-between">
+                      <h4 className="text-sm font-semibold">
+                        Objective {objectiveIndex + 1}
+                      </h4>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-xs text-base-content"
+                        onClick={() => onRemoveObjective(objective.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <TextAreaInput
+                      label="Objective Description"
+                      value={objective.description}
+                      onChange={(value) =>
+                        onUpdateObjective(objective.id, "description", value)
+                      }
+                      rows={2}
+                    />
+                    <div className="mt-3 grid gap-4 md:grid-cols-2">
+                      <Input
+                        label="Success Criteria"
+                        value={objective.criteria}
+                        onChange={(event) =>
+                          onUpdateObjective(
+                            objective.id,
+                            "criteria",
+                            event.target.value,
+                          )
+                        }
+                        placeholder="e.g., 70% accuracy"
+                      />
+                      <CreatableSelectInput
+                        label="Status"
+                        value={objective.status}
+                        onChange={(value) =>
+                          onUpdateObjective(objective.id, "status", value)
+                        }
+                        options={objectiveStatuses}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-xl border border-dashed border-base-300 p-4 text-center text-sm text-base-content/60">
+                No short-term objectives added yet.
+              </p>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={Plus}
+              onClick={onAddObjective}
+            >
+              Add Objective
+            </Button>
+          </GoalSection>
+
+          <GoalSection letter="D" title="Progress and Reporting">
+            <div className="grid gap-4 md:grid-cols-3">
+              <CreatableSelectInput
+                label="Reporting Schedule"
+                value={goal.progressReportingSchedule}
+                onChange={(value) =>
+                  onChange("progressReportingSchedule", value)
+                }
+                options={reportingSchedules}
+                placeholder="Choose schedule"
+              />
+              <CreatableSelectInput
+                label="Goal Status"
+                value={goal.status}
+                onChange={(value) => onChange("status", value)}
+                options={goalStatuses}
+              />
+              <Input
+                label="Progress Percentage"
+                type="number"
+                min="0"
+                max="100"
+                value={goal.progressPercentage}
+                onChange={(event) =>
+                  onChange("progressPercentage", Number(event.target.value))
+                }
+              />
+            </div>
+          </GoalSection>
+
+          <GoalSection letter="E" title="Suggested Supports">
+            <CreatableSelectInput
+              label="Supports"
+              value={goal.supports}
+              onChange={(value) => onChange("supports", value)}
+              options={commonSupports}
+              placeholder="Select or add supports"
+              isMulti
+            />
+          </GoalSection>
+        </div>
+      )}
 
       {warnings.length > 0 && (
         <div className="rounded-xl border border-warning/25 bg-warning/5 p-4">
-          <p className="text-sm font-semibold text-warning">
+          <p className="text-sm font-semibold text-base-content">
             Complete these items before finishing the goal:
           </p>
           <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-base-content/70">
@@ -1610,7 +1975,7 @@ const GoalBuilderCard = ({
 const GoalSection = ({ letter, title, helper, children }) => (
   <section className="space-y-4">
     <div className="flex gap-3">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-black text-primary">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-black text-base-content">
         {letter}
       </span>
       <div>

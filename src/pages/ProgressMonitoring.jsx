@@ -6,6 +6,7 @@ import {
   Clock3,
   Plus,
   Save,
+  Sparkles,
   Target,
 } from "lucide-react";
 import Button from "../components/common/Button";
@@ -14,12 +15,16 @@ import Modal from "../components/common/Modal";
 import SectionTabs from "../components/common/SectionTabs";
 import Stat from "../components/common/Stat";
 import Input from "../components/common/Input";
+import AiProgressSummaryPanel from "../components/common/AiProgressSummaryPanel";
+import PageHeader from "../components/common/PageHeader";
 import SelectInput from "../components/forms/SelectInput";
+import CreatableSelectInput from "../components/forms/CreatableSelectInput";
 import iepService from "../services/iepService";
 import progressService from "../services/progressService";
 import { formatDate } from "../utils/dateUtils";
-import { getStudentName } from "../utils/studentUtils";
+import { getIepStudentName } from "../utils/studentUtils";
 import { getGoalStatement, normalizeGoal } from "../utils/goalUtils";
+import { buildProgressSummaryPayload } from "../utils/progressSummaryUtils";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -56,6 +61,8 @@ const ProgressMonitoring = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [aiProgressSummary, setAiProgressSummary] = useState("");
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [visibleNotes, setVisibleNotes] = useState(5);
@@ -88,7 +95,10 @@ const ProgressMonitoring = () => {
     const students = new Map();
     ieps.forEach((iep) => {
       if (iep.studentId && !students.has(iep.studentId)) {
-        students.set(iep.studentId, getStudentName(iep) || "Unnamed student");
+        students.set(
+          iep.studentId,
+          getIepStudentName(iep) || "Unnamed student",
+        );
       }
     });
 
@@ -201,6 +211,7 @@ const ProgressMonitoring = () => {
     setIsSessionLoading(Boolean(nextIep));
     setActiveTab("overview");
     setVisibleNotes(5);
+    setAiProgressSummary("");
   };
 
   const openNoteModal = (goalId) => {
@@ -267,6 +278,7 @@ const ProgressMonitoring = () => {
         current.map((iep) => (iep.id === updatedIep.id ? updatedIep : iep)),
       );
       setSessions((current) => [saved, ...current]);
+      setAiProgressSummary("");
       setFormData({
         sessionDate: today(),
         score: "",
@@ -283,20 +295,59 @@ const ProgressMonitoring = () => {
     }
   };
 
+  const generateProgressSummary = async () => {
+    if (!selectedIep) {
+      toast.error("Choose a student and IEP before generating a summary");
+      return;
+    }
+    if (!window.electronAPI?.ai?.summarizeProgress) {
+      toast.error("AI progress summaries are available in the GURO desktop app");
+      return;
+    }
+
+    setIsGeneratingSummary(true);
+    try {
+      const text = await window.electronAPI.ai.summarizeProgress(
+        buildProgressSummaryPayload({
+          iep: selectedIep,
+          studentName: getIepStudentName(selectedIep),
+          progressSessions: sessions,
+        }),
+      );
+      setAiProgressSummary(text);
+      toast.success("Progress summary generated for teacher review");
+    } catch (error) {
+      toast.error(error.message || "Unable to generate the progress summary");
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+
+  const copyProgressSummary = async () => {
+    try {
+      await navigator.clipboard.writeText(aiProgressSummary);
+      toast.success("Progress summary copied");
+    } catch {
+      toast.error("Could not copy the progress summary");
+    }
+  };
+
   return (
     <div className="min-h-full w-full space-y-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Progress Monitoring</h1>
-          <p className="mt-1 text-sm text-base-content/60">
-            Choose a student to view goal progress, update status, and record
-            progress notes.
-          </p>
-        </div>
-        <Button icon={Plus} onClick={() => openNoteModal()}>
-          Add Progress Note
-        </Button>
-      </div>
+      <PageHeader
+        title="Progress Monitoring"
+        description="Review goal progress and record teacher observations after learning activities."
+        actions={
+          <>
+            <Button variant="secondary" icon={Sparkles} loading={isGeneratingSummary} disabled={!selectedIep || isSessionLoading} onClick={generateProgressSummary}>
+              {isGeneratingSummary ? "Generating summary..." : "Generate Progress Summary"}
+            </Button>
+            <Button icon={Plus} onClick={() => openNoteModal()}>
+              Add Progress Note
+            </Button>
+          </>
+        }
+      />
 
       {isLoading ? (
         <div className="flex min-h-[20rem] items-center justify-center rounded-2xl border border-base-300 bg-base-100">
@@ -306,13 +357,14 @@ const ProgressMonitoring = () => {
         <>
           <section className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
             <div className="max-w-xl">
-              <SelectInput
+              <CreatableSelectInput
                 label="Student"
                 helperText="Select the learner whose IEP goals you want to review."
                 value={selectedStudentId}
                 onChange={handleStudentSelect}
                 options={studentOptions}
-                placeholder="Choose a student"
+                placeholder="Search or choose a student"
+                allowCreate={false}
               />
             </div>
             {selectedStudentId && studentIeps.length > 1 && (
@@ -327,6 +379,7 @@ const ProgressMonitoring = () => {
                     setIsSessionLoading(true);
                     setActiveTab("overview");
                     setVisibleNotes(5);
+                    setAiProgressSummary("");
                   }}
                   options={studentIeps.map((iep) => ({
                     value: iep.id,
@@ -362,6 +415,14 @@ const ProgressMonitoring = () => {
                   { id: "attention", label: "Needs Attention" },
                 ]}
               />
+
+              {aiProgressSummary && (
+                <AiProgressSummaryPanel
+                  value={aiProgressSummary}
+                  onChange={setAiProgressSummary}
+                  onCopy={copyProgressSummary}
+                />
+              )}
 
               {activeTab === "overview" && (
                 <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -496,7 +557,7 @@ const GoalCard = ({ item, onAddNote, onUpdate }) => (
   <article className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="text-xs font-bold uppercase tracking-wide text-primary">
+        <p className="text-xs font-bold uppercase tracking-wide text-base-content">
           {item.goal.area || `Goal ${item.index + 1}`}
         </p>
         <h3 className="mt-1 line-clamp-2 font-semibold">
@@ -659,7 +720,7 @@ const ProgressTimeline = ({ items }) =>
             <p className="mt-1 text-sm leading-5 text-base-content/70">
               {session.notes || "Progress score recorded."}
             </p>
-            <span className="mt-2 inline-flex rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-primary">
+            <span className="mt-2 inline-flex rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-base-content">
               {session.score}/{session.total} (
               {getPercent(session.score, session.total)}%)
             </span>

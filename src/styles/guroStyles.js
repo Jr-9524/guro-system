@@ -16,9 +16,9 @@ export const guroButtonSizes = {
 };
 
 export const guroButtonVariants = {
-  primary: "bg-primary text-primary-content hover:brightness-90 focus:ring-primary/20",
-  secondary: "border border-base-300 bg-base-100 text-base-content hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus:ring-primary/20",
-  soft: "border border-primary/15 bg-primary/10 text-primary hover:bg-primary/15 focus:ring-primary/20",
+  primary: "bg-primary text-primary-content hover:bg-[#1d4ed8] focus:ring-4 focus:ring-primary/20",
+  secondary: "border border-base-300 bg-base-100 text-base-content hover:border-primary/40 hover:bg-primary/10 hover:text-base-content focus:ring-primary/20",
+  soft: "border border-primary/15 bg-primary/10 text-base-content hover:bg-primary/15 focus:ring-primary/20",
   ghost: "bg-transparent text-base-content shadow-none hover:bg-base-200",
   danger: "bg-error text-error-content hover:brightness-90 focus:ring-error/20",
 };
@@ -37,11 +37,11 @@ export const guroTable = {
   subtitle: "mt-1 text-xs text-base-content/60",
 
   badge:
-    "rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary",
+    "rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-base-content",
 };
 
 export const guroCard = {
-  base: "rounded-2xl border border-base-300 bg-base-100 shadow-sm transition-all duration-200",
+  base: "rounded-xl border border-base-300 bg-base-100 shadow-sm transition-all duration-200",
 
   hover: "hover:border-primary/25 hover:shadow-md",
 
@@ -61,11 +61,11 @@ export const guroText = {
 
   muted: "text-base-content/60",
 
-  primary: "text-primary",
+  primary: "text-base-content",
 
-  dark: "text-primary",
+  dark: "text-base-content",
 
-  link: "text-sm font-semibold text-primary transition-opacity hover:opacity-75 hover:underline",
+  link: "text-sm font-semibold text-base-content transition-opacity hover:opacity-75 hover:underline",
 };
 
 export const guroInput =
@@ -87,26 +87,26 @@ export const guroStat = {
   variants: {
     blue: {
       iconBox: "bg-primary/10",
-      icon: "text-primary",
-      note: "text-primary",
+      icon: "text-base-content",
+      note: "text-base-content",
     },
 
     success: {
       iconBox: "bg-success/10",
-      icon: "text-success",
-      note: "text-success",
+      icon: "text-base-content",
+      note: "text-base-content",
     },
 
     warning: {
       iconBox: "bg-warning/10",
-      icon: "text-warning",
-      note: "text-warning",
+      icon: "text-base-content",
+      note: "text-base-content",
     },
 
     danger: {
       iconBox: "bg-error/10",
-      icon: "text-error",
-      note: "text-error",
+      icon: "text-base-content",
+      note: "text-base-content",
     },
 
     slate: {
@@ -117,8 +117,8 @@ export const guroStat = {
 
     teal: {
       iconBox: "bg-secondary/10",
-      icon: "text-secondary",
-      note: "text-secondary",
+      icon: "text-base-content",
+      note: "text-base-content",
     },
   },
 };

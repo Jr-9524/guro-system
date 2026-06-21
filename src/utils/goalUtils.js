@@ -183,7 +183,10 @@ export const getGoalWarnings = (goal) => {
   if (!normalized.currentPerformance.trim()) {
     warnings.push("Describe the student's current performance.");
   }
-  if (!normalized.annualGoal.behavior.trim()) {
+  if (
+    !normalized.annualGoal.behavior.trim() &&
+    !normalized.generatedGoalText.trim()
+  ) {
     warnings.push("Add the skill or behavior the student will demonstrate.");
   }
   if (!normalized.annualGoal.criteria.trim()) {

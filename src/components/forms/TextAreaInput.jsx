@@ -1,23 +1,9 @@
 import FormField from "./FormField";
+import { guroInput } from "../../styles/guroStyles";
 
-const TextAreaInput = ({
-  label,
-  value,
-  onChange,
-  placeholder = "",
-  rows = 3,
-  required = false,
-}) => (
-  <FormField label={label}>
-    <textarea
-      className="textarea w-full border border-gray-300 text-base px-2.5 py-2"
-      rows={rows}
-      value={value}
-      placeholder={placeholder}
-      required={required}
-      onChange={(event) => onChange(event.target.value)}
-    />
+const TextAreaInput = ({ label, value, onChange, placeholder = "", rows = 3, required = false, helperText }) => (
+  <FormField label={label} required={required} helperText={helperText}>
+    <textarea className={`${guroInput} min-h-24 resize-y leading-6`} rows={rows} value={value} placeholder={placeholder} required={required} onChange={(event) => onChange(event.target.value)} />
   </FormField>
 );
-
 export default TextAreaInput;

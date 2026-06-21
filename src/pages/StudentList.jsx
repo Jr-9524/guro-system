@@ -5,6 +5,8 @@ import {
   ArrowLeft,
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Download,
   FileSpreadsheet,
   Mail,
@@ -44,7 +46,6 @@ import { getStudentFullName, getStudentInitials } from "../utils/studentUtils";
 
 const Views = {
   TABLE: "table",
-  GALLERY: "gallery",
   CALENDAR: "calendar",
 };
 
@@ -83,7 +84,6 @@ const StudentsView = () => {
   const currentView = useMemo(() => {
     const view = searchParams.get("view");
     if (view === Views.CALENDAR) return Views.CALENDAR;
-    if (view === Views.GALLERY) return Views.GALLERY;
     return Views.TABLE;
   }, [searchParams]);
   const [sortBy, setSortBy] = useState("lastName");
@@ -544,7 +544,6 @@ const StudentsView = () => {
             onChange={changeView}
             items={[
               { id: Views.TABLE, label: "Table" },
-              { id: Views.GALLERY, label: "Gallery" },
               { id: Views.CALENDAR, label: "Calendar" },
             ]}
           />
@@ -608,7 +607,7 @@ const StudentsView = () => {
             month={calendarMonth}
             setMonth={setCalendarMonth}
             onOpenStudent={(studentId) => navigate(`/students/${studentId}`)}
-            onOpenIep={(iepId) => navigate(`/iep/${iepId}/edit`)}
+            onOpenIep={(iepId) => navigate(`/iep/${iepId}/view`)}
           />
         ) : filteredAndSorted.length > 0 ? (
           <>
@@ -618,13 +617,6 @@ const StudentsView = () => {
                 onOpen={(student) => navigate(`/students/${student.id}`)}
                 onEdit={setEditingStudent}
                 onDelete={setDeleteConfirm}
-              />
-            )}
-
-            {currentView === Views.GALLERY && (
-              <StudentGallery
-                students={pagination.currentItems}
-                onOpen={(student) => navigate(`/students/${student.id}`)}
               />
             )}
           </>
@@ -793,7 +785,7 @@ const StudentImportTool = ({ existingStudents, onImport, onCancel }) => {
 
       {errors.length > 0 && (
         <div className="rounded-lg border border-error/30 bg-error/10 p-4">
-          <p className="font-semibold text-error">
+          <p className="font-semibold text-base-content">
             {errors.length} row issue{errors.length === 1 ? "" : "s"} found
           </p>
           <div className="mt-2 max-h-32 space-y-1 overflow-y-auto text-sm text-base-content/70">
@@ -968,24 +960,37 @@ const StudentCalendar = ({
               Birthdays, IEP dates, and upcoming reviews
             </p>
           </div>
-          <div className="join">
+          <div
+            className="inline-flex items-center gap-1 rounded-xl border border-base-300 bg-base-100 p-1"
+            aria-label="Calendar navigation"
+          >
             <button
-              className="btn join-item btn-sm"
+              type="button"
+              className="btn btn-ghost btn-sm gap-1 px-2"
               onClick={() => shiftMonth(-1)}
+              aria-label="Previous month"
+              title="Previous month"
             >
-              Previous
+              <ChevronLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Previous</span>
             </button>
             <button
-              className="btn join-item btn-sm"
+              type="button"
+              className="btn btn-sm gap-1.5 border border-base-300 bg-base-200 px-3 text-base-content shadow-none hover:bg-base-300"
               onClick={() => setMonth(new Date())}
             >
+              <CalendarDays className="h-4 w-4" />
               Today
             </button>
             <button
-              className="btn join-item btn-sm"
+              type="button"
+              className="btn btn-ghost btn-sm gap-1 px-2"
               onClick={() => shiftMonth(1)}
+              aria-label="Next month"
+              title="Next month"
             >
-              Next
+              <span className="hidden sm:inline">Next</span>
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -1111,7 +1116,7 @@ const buildCalendarEvents = (students, ieps, monthStart) => {
       date: eventDate,
       dateKey: toDateKey(eventDate),
       studentId: student.id,
-      color: "bg-info/15 text-info",
+      color: "bg-info/15 text-base-content",
     });
   });
 
@@ -1124,7 +1129,7 @@ const buildCalendarEvents = (students, ieps, monthStart) => {
       dateValue: info.iepStartDate,
       title: `${name || iep.title} IEP starts`,
       subtitle: iep.title,
-      color: "bg-success/15 text-success",
+      color: "bg-success/15 text-base-content",
       month,
     });
     addIepEvent(events, {
@@ -1132,7 +1137,7 @@ const buildCalendarEvents = (students, ieps, monthStart) => {
       dateValue: info.iepEndDate,
       title: `${name || iep.title} IEP ends`,
       subtitle: "Annual review due",
-      color: "bg-warning/20 text-warning",
+      color: "bg-warning/20 text-base-content",
       month,
     });
 
@@ -1145,7 +1150,7 @@ const buildCalendarEvents = (students, ieps, monthStart) => {
           dateValue: reviewDate,
           title: `${name || iep.title} review prep`,
           subtitle: "30 days before IEP end date",
-          color: "bg-primary/10 text-primary",
+          color: "bg-primary/10 text-base-content",
           month,
         });
       }
@@ -1256,7 +1261,7 @@ const StudentTable = ({ students, onOpen, onEdit, onDelete }) => (
                   <li>
                     <button
                       onClick={() => onDelete(student)}
-                      className="text-error"
+                      className="text-base-content"
                     >
                       <Trash2 className="h-4 w-4" />
                       Delete
@@ -1269,36 +1274,6 @@ const StudentTable = ({ students, onOpen, onEdit, onDelete }) => (
         ))}
       </tbody>
     </table>
-  </div>
-);
-
-const StudentGallery = ({ students, onOpen }) => (
-  <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-    {students.map((student) => (
-      <button
-        key={student.id}
-        className="rounded-lg border border-gray-300 bg-base-100 p-5 text-left transition-shadow hover:shadow-sm"
-        onClick={() => onOpen(student)}
-      >
-        <div className="flex items-start gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-primary-content">
-            {getStudentInitials(student)}
-          </div>
-          <div className="min-w-0">
-            <h3 className="truncate font-bold">
-              {getStudentFullName(student)}
-            </h3>
-            <p className="mt-1 text-sm text-base-content/60">
-              Grade {student.gradeLevel || "?"}
-            </p>
-          </div>
-        </div>
-        <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-          <Info label="LRN" value={student.lrn || "Not set"} />
-          <Info label="Section" value={student.section || "Not set"} />
-        </div>
-      </button>
-    ))}
   </div>
 );
 

@@ -8,9 +8,13 @@ import {
   searchCategories,
 } from "../services/searchIndex";
 import SearchInput from "../components/common/SearchInput";
+import PageHeader from "../components/common/PageHeader";
+import useAuthStore from "../stores/authStore";
+import { canAccessPath } from "../utils/permissions";
 
 const SearchPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { user } = useAuthStore();
   const [allResults, setAllResults] = useState([]);
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [activeCategory, setActiveCategory] = useState(
@@ -47,20 +51,26 @@ const SearchPage = () => {
     setSearchParams(nextParams, { replace: true });
   }, [activeCategory, query, setSearchParams]);
 
-  const results = useMemo(() => {
-    return filterSearchResults(allResults, query, activeCategory);
-  }, [activeCategory, allResults, query]);
+  const accessibleResults = useMemo(
+    () => allResults.filter((result) => canAccessPath(user, result.to)),
+    [allResults, user],
+  );
 
-  const counts = useMemo(() => getSearchCounts(allResults), [allResults]);
+  const results = useMemo(() => {
+    return filterSearchResults(accessibleResults, query, activeCategory);
+  }, [accessibleResults, activeCategory, query]);
+
+  const counts = useMemo(
+    () => getSearchCounts(accessibleResults),
+    [accessibleResults],
+  );
 
   return (
     <div className="min-h-full w-full space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold">Search</h1>
-        <p className="text-sm text-base-content/60">
-          Find students, IEPs, custom goals, progress notes, and app pages.
-        </p>
-      </div>
+      <PageHeader
+        title="Search"
+        description="Find students, IEPs, goals, progress notes, and GURO pages."
+      />
 
       <section className="rounded-lg border border-gray-300 bg-base-100 p-4">
         <SearchInput
@@ -123,7 +133,7 @@ const SearchResultRow = ({ result }) => {
       className="flex flex-col gap-3 p-4 transition-colors hover:bg-base-200 md:flex-row md:items-center md:justify-between"
     >
       <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-base-content">
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0">

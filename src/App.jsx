@@ -5,6 +5,7 @@ import { Toaster } from "react-hot-toast";
 import useAuthStore from "./stores/authStore";
 import themeStore from "./stores/themeStore";
 import LoadingSpinner from "./components/common/LoadingSpinner";
+import { hasPermission, PERMISSIONS } from "./utils/permissions";
 
 // Lazy load pages
 const Login = React.lazy(() => import("./pages/Login"));
@@ -14,6 +15,7 @@ const AppLayout = React.lazy(() => import("./components/layout/AppLayout"));
 const StudentList = React.lazy(() => import("./pages/StudentList"));
 const IEPBuilder = React.lazy(() => import("./pages/IEPBuilder"));
 const IEPList = React.lazy(() => import("./pages/IEPList"));
+const IEPViewer = React.lazy(() => import("./pages/IEPViewer"));
 const Reports = React.lazy(() => import("./pages/Reports"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 const GoalBank = React.lazy(() => import("./pages/GoalBank"));
@@ -21,22 +23,34 @@ const ProgressMonitoring = React.lazy(() => import("./pages/ProgressMonitoring")
 const Reminders = React.lazy(() => import("./pages/Reminders"));
 const SearchPage = React.lazy(() => import("./pages/SearchPage"));
 const ActivityLog = React.lazy(() => import("./pages/ActivityLog"));
+const AccessDenied = React.lazy(() => import("./pages/AccessDenied"));
 
-const ProtectedRoute = ({ isAuthenticated, children }) => {
+const ProtectedRoute = ({ isAuthenticated, user, permission, children }) => {
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+  if (!hasPermission(user, permission)) {
+    return <AccessDenied />;
   }
   return children;
 };
 
 function App() {
-  const { isAuthenticated, checkAuth } = useAuthStore();
+  const { isAuthenticated, isInitialized, user, checkAuth } = useAuthStore();
   const { initTheme } = themeStore();
 
   useEffect(() => {
     checkAuth();
     initTheme();
   }, [checkAuth, initTheme]);
+
+  if (!isInitialized) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <HashRouter>
@@ -60,7 +74,7 @@ function App() {
           <Route
             path="/"
             element={
-              <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <ProtectedRoute isAuthenticated={isAuthenticated} user={user}>
                 <AppLayout />
               </ProtectedRoute>
             }
@@ -73,14 +87,19 @@ function App() {
             <Route path="students/:id" element={<StudentList />} />
 
             {/* IEP filtered views */}
+            <Route
+              path="iep"
+              element={<Navigate to="/iep/active" replace />}
+            />
             <Route path="iep/active" element={<IEPList view="active" />} />
             <Route path="iep/drafts" element={<IEPList view="drafts" />} />
             <Route path="iep/archive" element={<IEPList view="archive" />} />
 
             {/* IEP routes */}
             <Route path="iep/new" element={<IEPBuilder />} />
+            <Route path="iep/:id/view" element={<IEPViewer />} />
             <Route path="iep/:id/edit" element={<IEPBuilder />} />
-            <Route path="iep/:id" element={<IEPBuilder />} />
+            <Route path="iep/:id" element={<IEPViewer />} />
 
             {/* Progress & Reports */}
             <Route
@@ -88,23 +107,55 @@ function App() {
               element={<ProgressMonitoring />}
             />
             <Route path="reports" element={<Reports view="overview" />} />
+            <Route path="reports/iep" element={<Reports view="document" />} />
+            <Route
+              path="reports/iep/:id"
+              element={<Reports view="document" />}
+            />
             <Route
               path="reports/progress"
               element={<Reports view="progress" />}
             />
             <Route
               path="reports/compliance"
-              element={<Reports view="compliance" />}
+              element={
+                <ProtectedRoute
+                  isAuthenticated={isAuthenticated}
+                  user={user}
+                  permission={PERMISSIONS.AUDIT_READ}
+                >
+                  <Reports view="compliance" />
+                </ProtectedRoute>
+              }
             />
             <Route
               path="reports/analytics"
-              element={<Reports view="analytics" />}
+              element={
+                <ProtectedRoute
+                  isAuthenticated={isAuthenticated}
+                  user={user}
+                  permission={PERMISSIONS.AUDIT_READ}
+                >
+                  <Reports view="analytics" />
+                </ProtectedRoute>
+              }
             />
 
             {/* Other */}
             <Route path="search" element={<SearchPage />} />
             <Route path="reminders" element={<Reminders />} />
-            <Route path="activity" element={<ActivityLog />} />
+            <Route
+              path="activity"
+              element={
+                <ProtectedRoute
+                  isAuthenticated={isAuthenticated}
+                  user={user}
+                  permission={PERMISSIONS.AUDIT_READ}
+                >
+                  <ActivityLog />
+                </ProtectedRoute>
+              }
+            />
             <Route path="goals" element={<GoalBank />} />
             <Route path="settings" element={<Settings />} />
           </Route>

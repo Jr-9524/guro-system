@@ -214,19 +214,41 @@ function addMissingColumns(tableName, columns) {
 }
 
 function insertDefaultData() {
-  const count = db.prepare("SELECT COUNT(*) as count FROM users").get();
-  if (count.count === 0) {
-    // Insert default admin user (password: admin123)
-    const bcrypt = require("bcryptjs");
-    const hash = bcrypt.hashSync("admin123", 12);
+  const bcrypt = require("bcryptjs");
+  const insertUser = db.prepare(
+    "INSERT OR IGNORE INTO users " +
+      "(id, username, password_hash, full_name, role) " +
+      "VALUES (?, ?, ?, ?, ?)",
+  );
 
-    db.prepare(
-      `
-      INSERT INTO users (id, username, password_hash, full_name, role)
-      VALUES (?, ?, ?, ?, ?)
-    `,
-    ).run("admin-1", "admin", hash, "Admin User", "admin");
-  }
+  // Development/demo accounts. Change or remove these before deployment.
+  [
+    ["admin-1", "admin", "admin123", "Admin User", "admin"],
+    [
+      "coordinator-1",
+      "coordinator",
+      "coordinator123",
+      "SPED Coordinator",
+      "sped_coordinator",
+    ],
+  ].forEach(([id, username, password, fullName, role]) => {
+    insertUser.run(
+      id,
+      username,
+      bcrypt.hashSync(password, 12),
+      fullName,
+      role,
+    );
+  });
+}
+function closeDatabase() {
+  if (db?.open) db.close();
+  db = null;
 }
 
-module.exports = { initDatabase, getDatabase };
+module.exports = {
+  initDatabase,
+  getDatabase,
+  getDatabasePath,
+  closeDatabase,
+};

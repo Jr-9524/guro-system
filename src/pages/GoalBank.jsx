@@ -5,14 +5,14 @@ import { ClipboardCopy, Pencil, Plus, Send, Trash2 } from "lucide-react";
 
 import Button from "../components/common/Button";
 import Modal from "../components/common/Modal";
-import Input from "../components/common/Input";
-import SelectInput from "../components/forms/SelectInput";
+import CreatableSelectInput from "../components/forms/CreatableSelectInput";
 import SelectFilter from "../components/filters/SelectFilter";
 import Stat from "../components/common/Stat";
 import TextAreaInput from "../components/forms/TextAreaInput";
 import SearchInput from "../components/common/SearchInput";
 import IepTabs from "../components/common/IepTabs";
 import Pagination from "../components/common/Pagination";
+import PageHeader from "../components/common/PageHeader";
 import usePagination from "../hooks/usePagination";
 
 import workspaceStoreService from "../services/workspaceStoreService";
@@ -72,6 +72,14 @@ const GoalBank = () => {
     () => [
       ...new Set(goals.map((goal) => goal.area).filter(Boolean)),
     ],
+    [goals],
+  );
+  const skillFocusOptions = useMemo(
+    () => [...new Set(goals.map((goal) => goal.skillFocus).filter(Boolean))],
+    [goals],
+  );
+  const tagOptions = useMemo(
+    () => [...new Set(goals.flatMap((goal) => goal.tags || []).filter(Boolean))],
     [goals],
   );
   const filteredGoals = useMemo(() => {
@@ -152,18 +160,15 @@ const GoalBank = () => {
 
   return (
     <div className="min-h-full w-full space-y-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Goal Bank</h1>
-          <p className="text-sm text-base-content/60">
-            Search reusable SMART goal templates and send one into the IEP
-            builder.
-          </p>
-        </div>
-        <Button onClick={openNewTemplate} icon={Plus}>
-          Create Custom Goal
-        </Button>
-      </div>
+      <PageHeader
+        title="Goal Bank"
+        description="Find measurable goal templates or create an editable template for future IEPs."
+        actions={
+          <Button onClick={openNewTemplate} icon={Plus}>
+            Create Custom Goal
+          </Button>
+        }
+      />
       <IepTabs activeId="goals" />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <Stat
@@ -266,18 +271,20 @@ const GoalBank = () => {
       >
         <form onSubmit={saveGoal} className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
-            <Input
+            <CreatableSelectInput
               label="Skill focus"
               value={draftGoal.skillFocus}
-              onChange={(event) =>
+              onChange={(value) =>
                 setDraftGoal((current) => ({
                   ...current,
-                  skillFocus: event.target.value,
+                  skillFocus: value,
                 }))
               }
+              options={skillFocusOptions}
+              placeholder="Select or add a skill focus"
               required
             />
-            <SelectInput
+            <CreatableSelectInput
               label="Area"
               value={draftGoal.area}
               onChange={(value) =>
@@ -289,7 +296,7 @@ const GoalBank = () => {
               options={goalAreas}
               placeholder="Select an area"
             />
-            <SelectInput
+            <CreatableSelectInput
               label="Difficulty"
               value={draftGoal.difficulty}
               onChange={(value) =>
@@ -316,7 +323,7 @@ const GoalBank = () => {
           />
 
           <div className="grid gap-4 md:grid-cols-2">
-            <SelectInput
+            <CreatableSelectInput
               label="Measurement method"
               value={draftGoal.measurementMethod}
               onChange={(value) =>
@@ -328,7 +335,7 @@ const GoalBank = () => {
               options={measurementMethods}
               placeholder="Choose how progress is measured"
             />
-            <SelectInput
+            <CreatableSelectInput
               label="Frequency"
               value={draftGoal.frequency}
               onChange={(value) =>
@@ -339,7 +346,7 @@ const GoalBank = () => {
               }
               options={measurementFrequencies}
             />
-            <SelectInput
+            <CreatableSelectInput
               label="Reporting schedule"
               value={draftGoal.reportingSchedule}
               onChange={(value) =>
@@ -350,19 +357,18 @@ const GoalBank = () => {
               }
               options={reportingSchedules}
             />
-            <Input
+            <CreatableSelectInput
               label="Tags"
-              value={draftGoal.tags.join(", ")}
-              onChange={(event) =>
+              value={draftGoal.tags}
+              onChange={(value) =>
                 setDraftGoal((current) => ({
                   ...current,
-                  tags: event.target.value
-                    .split(",")
-                    .map((tag) => tag.trim())
-                    .filter(Boolean),
+                  tags: value,
                 }))
               }
-              placeholder="reading, comprehension, main idea"
+              options={tagOptions}
+              placeholder="Select or add tags"
+              isMulti
             />
           </div>
 
@@ -388,35 +394,20 @@ const GoalBank = () => {
             rows={4}
           />
 
-          <div>
-            <p className="mb-2 text-sm font-semibold">Suggested supports</p>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {commonSupports.map((support) => {
-                const selected = draftGoal.supports.includes(support);
-                return (
-                  <button
-                    key={support}
-                    type="button"
-                    onClick={() =>
-                      setDraftGoal((current) => ({
-                        ...current,
-                        supports: current.supports.includes(support)
-                          ? current.supports.filter((item) => item !== support)
-                          : [...current.supports, support],
-                      }))
-                    }
-                    className={`rounded-xl border p-3 text-left text-sm transition-colors ${
-                      selected
-                        ? "border-primary/30 bg-primary/10 text-primary"
-                        : "border-base-300 hover:bg-base-200"
-                    }`}
-                  >
-                    {support}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <CreatableSelectInput
+            label="Suggested supports"
+            value={draftGoal.supports}
+            onChange={(value) =>
+              setDraftGoal((current) => ({
+                ...current,
+                supports: value,
+              }))
+            }
+            options={commonSupports}
+            placeholder="Select or add supports"
+            isMulti
+            closeMenuOnSelect={false}
+          />
 
           <div className="flex justify-end gap-2">
             <Button type="button" onClick={() => setIsModalOpen(false)}>
@@ -472,7 +463,7 @@ const GoalCard = ({ goal, onCopy, onSend, onEdit, onDelete }) => (
         {onDelete && (
           <button
             type="button"
-            className="btn btn-sm btn-ghost btn-square text-error"
+            className="btn btn-sm btn-ghost btn-square text-base-content"
             onClick={onDelete}
             title="Delete custom template"
           >

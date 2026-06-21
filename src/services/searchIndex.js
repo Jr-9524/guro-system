@@ -247,7 +247,7 @@ export const buildSearchResults = ({
       iep.lastModified,
     )}`,
     meta: `${iep.completedSections.length}/6 sections`,
-    to: `/iep/${iep.id}/edit`,
+    to: `/iep/${iep.id}/view`,
     icon: FileText,
     searchText: [
       iep.title,

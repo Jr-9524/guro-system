@@ -71,12 +71,12 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="flex min-h-screen items-center justify-center bg-base-200 px-4 py-12 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md space-y-8">
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-primary-600">GURO</h1>
-          <p className="mt-2 text-sm text-gray-600">IEP Management System</p>
+          <h1 className="text-3xl font-black tracking-[0.16em] text-base-content">GURO</h1>
+          <p className="mt-2 text-sm text-base-content/60">IEP Management System</p>
         </div>
 
         {/* Form */}
@@ -86,9 +86,34 @@ const Login = () => {
               <h2 className="section-header text-center">Sign In</h2>
 
               {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-600">{error}</p>
+                <div className="mb-4 rounded-xl border border-error/25 bg-error/10 p-3">
+                  <p className="text-sm text-base-content">{error}</p>
                 </div>
+              )}
+
+              {import.meta.env.DEV && (
+                <aside className="mb-4 rounded-xl border border-base-300 bg-base-200 p-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">
+                    Development accounts
+                  </p>
+                  <p className="mt-1 text-xs text-base-content/60">
+                    Temporary sign-in reminder for local development.
+                  </p>
+                  <dl className="mt-3 grid gap-2 text-sm">
+                    <div className="rounded-lg bg-base-100 px-3 py-2">
+                      <dt className="font-semibold">Admin</dt>
+                      <dd className="mt-1 font-mono text-xs">
+                        Username: admin | Password: admin123
+                      </dd>
+                    </div>
+                    <div className="rounded-lg bg-base-100 px-3 py-2">
+                      <dt className="font-semibold">SPED Coordinator</dt>
+                      <dd className="mt-1 font-mono text-xs">
+                        Username: coordinator | Password: coordinator123
+                      </dd>
+                    </div>
+                  </dl>
+                </aside>
               )}
 
               <form onSubmit={handleLogin} className="space-y-4">
@@ -120,7 +145,7 @@ const Login = () => {
                 <Button
                   type="submit"
                   loading={isLoading}
-                  variant="info"
+                  variant="primary"
                   className="w-full font-semibold"
                 >
                   Sign In
@@ -130,7 +155,7 @@ const Login = () => {
               <div className="mt-4 text-center">
                 <button
                   onClick={() => setIsRegistering(true)}
-                  className="text-sm text-primary-600 hover:text-primary-700"
+                  className="text-sm font-semibold text-base-content hover:underline"
                 >
                   Don't have an account? Register
                 </button>
@@ -141,8 +166,8 @@ const Login = () => {
               <h2 className="section-header text-center">Create Account</h2>
 
               {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-600">{error}</p>
+                <div className="mb-4 rounded-xl border border-error/25 bg-error/10 p-3">
+                  <p className="text-sm text-base-content">{error}</p>
                 </div>
               )}
 
@@ -218,7 +243,7 @@ const Login = () => {
                 <Button
                   type="submit"
                   loading={isLoading}
-                  variant="info"
+                  variant="primary"
                   className="w-full"
                 >
                   Create Account
@@ -228,7 +253,7 @@ const Login = () => {
               <div className="mt-4 text-center">
                 <button
                   onClick={() => setIsRegistering(false)}
-                  className="text-sm text-primary-600 hover:text-primary-700"
+                  className="text-sm font-semibold text-base-content hover:underline"
                 >
                   Already have an account? Sign In
                 </button>

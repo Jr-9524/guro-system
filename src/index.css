@@ -78,3 +78,90 @@
     opacity: 0.65;
   }
 }
+
+.iep-report-document {
+  width: min(100%, 210mm);
+  margin: 0 auto;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  border: 1px solid var(--color-base-300);
+  background: var(--color-base-100);
+  color: var(--color-base-content);
+  box-shadow: 0 10px 30px rgb(15 23 42 / 0.08);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.iep-report-header {
+  border-bottom: 3px double currentColor;
+  padding-bottom: 1.25rem;
+  text-align: center;
+}
+
+.iep-report-system {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.iep-report-school { margin-top: 0.2rem; font-weight: 600; }
+.iep-report-header h1 { margin-top: 0.9rem; font-family: Georgia, serif; font-size: clamp(1.6rem, 4vw, 2.15rem); font-weight: 700; }
+.iep-report-header > h1 + p { margin-top: 0.2rem; color: color-mix(in srgb, currentColor 68%, transparent); font-size: 0.88rem; font-weight: 600; }
+.iep-report-header > small { display: block; margin-top: 0.75rem; color: color-mix(in srgb, currentColor 55%, transparent); font-size: 0.7rem; }
+.iep-report-meta { display: grid; gap: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 1rem; border-left: 1px solid var(--color-base-300); border-top: 1px solid var(--color-base-300); text-align: left; }
+.iep-report-meta span { border-bottom: 1px solid var(--color-base-300); border-right: 1px solid var(--color-base-300); padding: 0.45rem 0.6rem; overflow-wrap: anywhere; }
+.iep-report-meta strong { display: block; color: color-mix(in srgb, currentColor 58%, transparent); font-size: 0.58rem; letter-spacing: 0.05em; text-transform: uppercase; }
+
+.iep-report-section { margin-top: 1.6rem; }
+.iep-report-section > h2 { display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.8rem; border-bottom: 1px solid var(--color-base-300); padding-bottom: 0.4rem; font-family: Georgia, serif; font-size: 1.05rem; font-weight: 700; }
+.iep-report-section > h2 span { display: inline-flex; height: 1.7rem; min-width: 1.7rem; align-items: center; justify-content: center; border-radius: 999px; background: var(--color-base-200); font-family: Arial, sans-serif; font-size: 0.7rem; }
+.iep-report-grid { display: grid; gap: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); border-left: 1px solid var(--color-base-300); border-top: 1px solid var(--color-base-300); }
+.iep-report-field { min-width: 0; border-bottom: 1px solid var(--color-base-300); border-right: 1px solid var(--color-base-300); padding: 0.55rem 0.7rem; }
+.iep-report-field dt { color: color-mix(in srgb, currentColor 60%, transparent); font-size: 0.64rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.iep-report-field dd { margin-top: 0.12rem; overflow-wrap: anywhere; }
+.iep-report-narrative { margin-top: 0.9rem; }
+.iep-report-narrative h3, .iep-report-subheading, .iep-report-goal h4, .iep-report-columns h3 { margin-bottom: 0.25rem; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+.iep-report-narrative p { min-height: 2.8rem; border-left: 3px solid var(--color-base-300); padding: 0.5rem 0.75rem; background: var(--color-base-200); white-space: pre-wrap; }
+.iep-report-missing { color: color-mix(in srgb, currentColor 55%, transparent); font-style: italic; }
+.iep-report-goal { break-inside: avoid; margin-top: 0.9rem; border: 1px solid var(--color-base-300); padding: 0.9rem; }
+.iep-report-goal-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; }
+.iep-report-goal-heading h3 { font-weight: 700; }
+.iep-report-goal-heading span { font-size: 0.75rem; font-weight: 600; }
+.iep-report-goal-statement { margin: 0.65rem 0; font-family: Georgia, serif; font-size: 0.98rem; }
+.iep-report-list { margin: 0.35rem 0 0 1.1rem; list-style: disc; }
+.iep-report-columns { display: grid; gap: 1rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.iep-report-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.iep-report-table th, .iep-report-table td { border: 1px solid var(--color-base-300); padding: 0.5rem; text-align: left; vertical-align: top; }
+.iep-report-table th { background: var(--color-base-200); font-weight: 700; }
+.iep-report-subheading { margin-top: 1rem; }
+.iep-report-notes > div { break-inside: avoid; border-bottom: 1px solid var(--color-base-300); padding: 0.7rem 0; }
+.iep-report-notes > div:first-child { padding-top: 0; }
+.iep-report-notes > div > div { display: flex; justify-content: space-between; gap: 1rem; }
+.iep-report-notes p { margin-top: 0.25rem; white-space: pre-wrap; }
+.iep-report-notes small { color: color-mix(in srgb, currentColor 60%, transparent); }
+.iep-report-signatures { display: grid; gap: 2rem; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 4rem; text-align: center; }
+.iep-report-signatures span { display: block; min-height: 1.5rem; }
+.iep-report-signatures i { display: block; border-top: 1px solid currentColor; }
+.iep-report-signatures strong, .iep-report-signatures small { display: block; margin-top: 0.25rem; font-size: 0.68rem; }
+.iep-report-signatures small { color: color-mix(in srgb, currentColor 55%, transparent); }
+.iep-report-footer { margin-top: 2rem; border-top: 1px solid var(--color-base-300); padding-top: 0.7rem; text-align: center; font-size: 0.65rem; }
+
+@media (max-width: 640px) {
+  .iep-report-grid, .iep-report-columns, .iep-report-signatures, .iep-report-meta { grid-template-columns: 1fr; }
+  .iep-report-signatures { gap: 3rem; }
+}
+
+@page { size: A4; margin: 14mm 16mm; }
+
+@media print {
+  html, body { height: auto !important; overflow: visible !important; background: white !important; }
+  body * { visibility: hidden !important; }
+  .iep-report-document, .iep-report-document * { visibility: visible !important; }
+  .report-screen-only { display: none !important; }
+  .iep-report-document { position: absolute; inset: 0; width: 100%; max-width: none; margin: 0; padding: 0; border: 0; background: white; color: #111827; box-shadow: none; font-size: 10pt; }
+  .iep-report-section > h2, .iep-report-field, .iep-report-grid, .iep-report-table th, .iep-report-table td, .iep-report-goal, .iep-report-notes > div, .iep-report-footer { border-color: #9ca3af; }
+  .iep-report-section > h2 span, .iep-report-narrative p, .iep-report-table th { background: #f3f4f6 !important; }
+  .iep-report-section, .iep-report-goal, .iep-report-table tr, .iep-report-narrative, .iep-report-signatures > div { break-inside: avoid; page-break-inside: avoid; }
+  .iep-report-page-break { break-before: page; page-break-before: always; }
+  .iep-report-header h1 { font-size: 20pt; }
+}
