@@ -28,6 +28,22 @@ contextBridge.exposeInMainWorld("electronAPI", {
     delete: (id) => ipcRenderer.invoke("progress:delete", id),
   },
 
+  // AI drafting runs in Electron so provider credentials never enter React.
+  ai: {
+    generatePlaafp: (payload) =>
+      ipcRenderer.invoke("ai:generatePlaafp", payload),
+    suggestGoals: (payload) => ipcRenderer.invoke("ai:suggestGoals", payload),
+    summarizeProgress: (payload) =>
+      ipcRenderer.invoke("ai:summarizeProgress", payload),
+  },
+
+  // Full SQLite database backup and restore
+  backup: {
+    createBackup: () => ipcRenderer.invoke("backup:create"),
+    restoreBackup: () => ipcRenderer.invoke("backup:restore"),
+    openBackupFolder: () => ipcRenderer.invoke("backup:openFolder"),
+  },
+
   // Workspace key/value state
   workspace: {
     get: (key) => ipcRenderer.invoke("workspace:get", key),
@@ -46,6 +62,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Auth
   auth: {
     login: (credentials) => ipcRenderer.invoke("auth:login", credentials),
+    resume: (userId) => ipcRenderer.invoke("auth:resume", userId),
+    logout: () => ipcRenderer.invoke("auth:logout"),
     register: (data) => ipcRenderer.invoke("auth:register", data),
   },
 });

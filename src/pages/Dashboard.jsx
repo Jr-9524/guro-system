@@ -13,6 +13,7 @@ import LoadingSpinner from "../components/common/LoadingSpinner";
 import Panel from "../components/common/Panel";
 import Stat from "../components/common/Stat";
 import ButtonLink from "../components/common/ButtonLink";
+import PageHeader from "../components/common/PageHeader";
 import { formatDate, daysUntil } from "../utils/dateUtils";
 import { getIepStudentName } from "../utils/studentUtils";
 import { getCompletionPercent } from "../utils/iepUtils";
@@ -74,14 +75,10 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-full w-full space-y-7">
-      <div>
-        <h1 className="text-2xl font-bold">
-          Welcome, {user?.fullName || "Teacher"}
-        </h1>
-        <p className="mt-1 text-sm text-base-content/60">
-          Here is your current IEP workspace overview.
-        </p>
-      </div>
+      <PageHeader
+        title={`Welcome, ${user?.fullName || "Teacher"}`}
+        description="Review students, IEP activity, and upcoming teacher actions."
+      />
 
       {isLoading ? (
         <div className="flex min-h-[20rem] items-center justify-center rounded-2xl border border-base-300 bg-base-100">
@@ -143,7 +140,7 @@ const RecentIepList = ({ ieps }) =>
       {ieps.map((iep) => (
         <Link
           key={iep.id}
-          to={`/iep/${iep.id}/edit`}
+          to={`/iep/${iep.id}/view`}
           className="flex items-center justify-between gap-3 border-b border-base-300 px-4 py-3 transition-colors last:border-0 hover:bg-base-200"
         >
           <span className="min-w-0">
@@ -166,7 +163,7 @@ const UpcomingReviewList = ({ items }) =>
       {items.map(({ iep, days }) => (
         <Link
           key={iep.id}
-          to={`/iep/${iep.id}/edit`}
+          to={`/iep/${iep.id}/view`}
           className="flex items-center justify-between gap-3 rounded-xl border border-base-300 p-3 transition-colors hover:bg-base-200"
         >
           <span className="min-w-0">
@@ -195,7 +192,7 @@ const StudentsWithoutIep = ({ students }) =>
           className="flex items-center justify-between rounded-xl border border-base-300 p-3 text-sm transition-colors hover:bg-base-200"
         >
           <span className="font-semibold">{student.firstName} {student.lastName}</span>
-          <span className="text-xs font-semibold text-primary">Create IEP</span>
+          <span className="text-xs font-semibold text-base-content">Create IEP</span>
         </Link>
       ))}
     </div>

@@ -43,7 +43,7 @@ const AppLayout = () => {
       {/* Main Content */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top Bar */}
-        <header className="flex h-14 items-center justify-between border-b border-base-300 bg-base-100/95 px-4 backdrop-blur">
+        <header className="flex h-14 items-center justify-between border-b border-base-300 bg-base-100 px-4 backdrop-blur">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}

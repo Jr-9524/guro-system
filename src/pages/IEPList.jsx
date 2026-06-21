@@ -2,16 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Archive, FileText, Plus, RotateCcw } from "lucide-react";
+import { Archive, Eye, FileText, Pencil, Plus, RotateCcw } from "lucide-react";
 import toast from "react-hot-toast";
 import Button from "../components/common/Button";
+import ButtonLink from "../components/common/ButtonLink";
 import SearchInput from "../components/common/SearchInput";
 import IepTabs from "../components/common/IepTabs";
 import Pagination from "../components/common/Pagination";
+import PageHeader from "../components/common/PageHeader";
 import usePagination from "../hooks/usePagination";
 import iepService from "../services/iepService";
 import { formatDate } from "../utils/dateUtils";
-import { getStudentName } from "../utils/studentUtils";
+import { getIepStudentName } from "../utils/studentUtils";
 
 const viewConfig = {
   active: {
@@ -67,7 +69,7 @@ const IEPList = ({ view = "drafts" }) => {
     if (!normalizedQuery) return ieps;
 
     return ieps.filter((iep) => {
-      const studentName = getStudentName(iep).toLowerCase();
+      const studentName = getIepStudentName(iep).toLowerCase();
       return (
         iep.title.toLowerCase().includes(normalizedQuery) ||
         studentName.includes(normalizedQuery)
@@ -124,15 +126,15 @@ const IEPList = ({ view = "drafts" }) => {
 
   return (
     <div className="min-h-full w-full space-y-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{config.title}</h1>
-          <p className="text-sm text-base-content/60">{config.description}</p>
-        </div>
-        <Button onClick={() => navigate("/iep/new")} icon={Plus}>
-          New IEP
-        </Button>
-      </div>
+      <PageHeader
+        title={config.title}
+        description={config.description}
+        actions={
+          <Button onClick={() => navigate("/iep/new")} icon={Plus}>
+            New IEP
+          </Button>
+        }
+      />
 
       <IepTabs activeId={view} />
 
@@ -158,16 +160,16 @@ const IEPList = ({ view = "drafts" }) => {
                 className="flex flex-col gap-3 p-4 transition-colors hover:bg-base-200 md:flex-row md:items-center md:justify-between"
               >
                 <Link
-                  to={`/iep/${iep.id}/edit`}
+                  to={`/iep/${iep.id}/view`}
                   className="flex min-w-0 flex-1 items-center gap-3"
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-base-content">
                     <FileText className="h-5 w-5" aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
                     <p className="truncate font-semibold">{iep.title}</p>
                     <p className="truncate text-sm text-base-content/60">
-                      {getStudentName(iep) || "No student name"} - Modified{" "}
+                      {getIepStudentName(iep) || "No student name"} - Modified{" "}
                       {formatDate(iep.lastModified)}
                     </p>
                   </div>
@@ -177,6 +179,22 @@ const IEPList = ({ view = "drafts" }) => {
                   <span className="badge badge-outline">
                     {iep.completedSections.length}/6 sections
                   </span>
+                  <ButtonLink
+                    to={"/iep/" + iep.id + "/view"}
+                    icon={Eye}
+                    size="sm"
+                    variant="secondary"
+                  >
+                    View
+                  </ButtonLink>
+                  <ButtonLink
+                    to={"/iep/" + iep.id + "/edit"}
+                    icon={Pencil}
+                    size="sm"
+                    variant="secondary"
+                  >
+                    Edit
+                  </ButtonLink>
                   {view === "archive" ? (
                     <Button
                       type="button"

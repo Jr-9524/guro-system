@@ -11,6 +11,8 @@ import {
   filterSearchResults,
   loadSearchResults,
 } from "../../services/searchIndex";
+import useAuthStore from "../../stores/authStore";
+import { canAccessPath } from "../../utils/permissions";
 
 const resultLimit = 8;
 
@@ -21,6 +23,7 @@ const QuickSearch = ({ isOpen, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef(null);
   const navigate = useNavigate();
+  const { user } = useAuthStore();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -46,7 +49,10 @@ const QuickSearch = ({ isOpen, onClose }) => {
   }, [isOpen]);
 
   const results = useMemo(() => {
-    const filteredResults = filterSearchResults(allResults, query);
+    const accessibleResults = allResults.filter((result) =>
+      canAccessPath(user, result.to),
+    );
+    const filteredResults = filterSearchResults(accessibleResults, query);
     const prioritizedResults = query.trim()
       ? filteredResults
       : filteredResults.filter((result) =>
@@ -54,7 +60,7 @@ const QuickSearch = ({ isOpen, onClose }) => {
         );
 
     return prioritizedResults.slice(0, resultLimit);
-  }, [allResults, query]);
+  }, [allResults, query, user]);
 
   const selectedResultIndex = results.length
     ? Math.min(selectedIndex, results.length - 1)
@@ -170,7 +176,7 @@ const QuickSearch = ({ isOpen, onClose }) => {
                           : "hover:bg-base-200"
                       }`}
                     >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-base-content">
                         {Icon && <Icon className="h-4 w-4" />}
                       </span>
                       <span className="min-w-0 flex-1">
@@ -200,7 +206,7 @@ const QuickSearch = ({ isOpen, onClose }) => {
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-300 px-4 py-2 text-xs opacity-60">
           <button
             type="button"
-            className="font-medium text-primary"
+            className="font-medium text-base-content"
             onClick={openSearchPage}
           >
             View all results

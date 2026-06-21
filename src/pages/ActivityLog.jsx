@@ -17,7 +17,10 @@ import auditService from "../services/auditService";
 import Button from "../components/common/Button";
 import SearchInput from "../components/common/SearchInput";
 import Pagination from "../components/common/Pagination";
+import PageHeader from "../components/common/PageHeader";
 import usePagination from "../hooks/usePagination";
+import useAuthStore from "../stores/authStore";
+import { isAdmin } from "../utils/permissions";
 
 const filters = [
   { value: "all", label: "All" },
@@ -44,6 +47,7 @@ const formatDateTime = (value) =>
   }).format(new Date(value));
 
 const ActivityLog = () => {
+  const { user } = useAuthStore();
   const [items, setItems] = useState([]);
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
@@ -109,27 +113,22 @@ const ActivityLog = () => {
 
   return (
     <div className="min-h-full w-full space-y-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Activity Log</h1>
-          <p className="text-sm text-base-content/60">
-            Review recent student, IEP, progress, import, and backup activity.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={exportActivity}>
-            <Download className="h-5 w-5" />
-            Export
-          </Button>
-          <button
-            className="btn border border-gray-300 px-5 bg-gray-100 transition-colors hover:bg-gray-200"
-            onClick={clearActivity}
-          >
-            <Trash2 className="h-5 w-5" />
-            Clear
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Activity Log"
+        description="Review recent student, IEP, progress, and data-management activity."
+        actions={
+          <>
+            <Button variant="secondary" onClick={exportActivity} icon={Download}>
+              Export
+            </Button>
+            {isAdmin(user) && (
+              <Button variant="danger" onClick={clearActivity} icon={Trash2}>
+                Clear Activity
+              </Button>
+            )}
+          </>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Total" value={items.length} icon={Activity} />
@@ -206,7 +205,7 @@ const ActivityLog = () => {
 const ActivityRow = ({ item }) => {
   const content = (
     <>
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-base-content">
         <ActivityTypeIcon type={item.type} />
       </div>
       <div className="min-w-0 flex-1">

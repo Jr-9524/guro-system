@@ -25,13 +25,34 @@ const section = (title, body) => `
   </section>
 `;
 
-const buildIepDocumentHtml = ({ title, data }) => {
-  const student = data.studentInfo || {};
+const buildIepDocumentHtml = ({
+  title,
+  data,
+  student = {},
+  progressSessions = [],
+  aiProgressSummary = "",
+}) => {
+  const studentInfo = data.studentInfo || {};
   const plaaFP = data.plaaFP || {};
   const goals = (data.goals || []).map(normalizeGoal);
   const accommodations = data.accommodations || {};
   const services = data.services || [];
   const progressPlan = data.progressPlan || {};
+  const learnerName = [
+    student.firstName || studentInfo.firstName,
+    student.middleName,
+    student.lastName || studentInfo.lastName,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const recentProgress = [...progressSessions]
+    .sort(
+      (a, b) =>
+        new Date(b.sessionDate || b.createdAt) -
+        new Date(a.sessionDate || a.createdAt),
+    )
+    .slice(0, 5);
+  const preparedBy = progressPlan.responsible || "Not specified";
 
   return `<!doctype html>
 <html>
@@ -51,6 +72,10 @@ const buildIepDocumentHtml = ({ title, data }) => {
       margin: 0 0 16px;
       padding-bottom: 8px;
     }
+    .document-header { text-align: center; }
+    .document-header .system { font-size: 11px; font-weight: bold; letter-spacing: .14em; }
+    .document-header .school { margin: 3px 0 12px; }
+    .document-header .subtitle { color: #4b5563; font-size: 12px; }
     h2 {
       font-size: 17px;
       margin: 24px 0 10px;
@@ -101,6 +126,9 @@ const buildIepDocumentHtml = ({ title, data }) => {
       letter-spacing: .04em;
       text-transform: uppercase;
     }
+    .signatures { display: grid; gap: 28px; grid-template-columns: repeat(3, 1fr); margin-top: 58px; text-align: center; }
+    .signature { border-top: 1px solid #111827; padding-top: 5px; }
+    .signature small { color: #4b5563; display: block; margin-top: 2px; }
     @media print {
       body { margin: 18mm; }
       button { display: none; }
@@ -108,18 +136,33 @@ const buildIepDocumentHtml = ({ title, data }) => {
   </style>
 </head>
 <body>
-  <h1>${escapeHtml(title)}</h1>
+  <div class="document-header">
+    <div class="system">GURO SYSTEM</div>
+    <div class="school">${escapeHtml(studentInfo.school || student.school || "School not specified")}</div>
+    <h1>Individualized Education Program</h1>
+    <div class="subtitle">${escapeHtml(title)} | Confidential educational document</div>
+  </div>
   ${section(
-    "Student Information",
+    "Learner Information",
     `<div class="grid">
-      ${field("First name", student.firstName)}
-      ${field("Last name", student.lastName)}
-      ${field("Grade level", student.gradeLevel)}
-      ${field("Age", student.age)}
-      ${field("School", student.school)}
-      ${field("Disability category", student.disabilityCategory)}
-      ${field("Disability severity", student.disabilitySeverity)}
-      ${field("IEP dates", `${student.iepStartDate || "Not set"} to ${student.iepEndDate || "Not set"}`)}
+      ${field("Learner name", learnerName)}
+      ${field("Learner Reference Number", student.lrn)}
+      ${field("Grade level", studentInfo.gradeLevel || student.gradeLevel)}
+      ${field("Section", student.section)}
+      ${field("Age", studentInfo.age)}
+      ${field("School", studentInfo.school || student.school)}
+      ${field("Disability category", studentInfo.disabilityCategory || student.primaryDisabilityCategory)}
+      ${field("Disability severity", studentInfo.disabilitySeverity || student.severityLevel)}
+      ${field("IEP dates", `${studentInfo.iepStartDate || "Not specified"} to ${studentInfo.iepEndDate || "Not specified"}`)}
+    </div>`,
+  )}
+  ${section(
+    "Parent / Guardian Information",
+    `<div class="grid">
+      ${field("Name", student.guardianName || studentInfo.guardianName)}
+      ${field("Relationship", student.guardianRelationship || studentInfo.guardianRelationship)}
+      ${field("Contact number", student.guardianContact || studentInfo.guardianContact)}
+      ${field("Email", student.guardianEmail || studentInfo.guardianEmail)}
     </div>`,
   )}
   ${section(
@@ -140,7 +183,7 @@ const buildIepDocumentHtml = ({ title, data }) => {
           .map(
             (goal, index) => `
               <h3>Goal ${index + 1}: ${escapeHtml(goal.area || "Goal")}</h3>
-              <p>${escapeHtml(goal.description || "No goal description.")}</p>
+              <p>${escapeHtml(getGoalStatement(goal))}</p>
               <h4>Current Performance</h4>
               <p>${escapeHtml(goal.currentPerformance || "Not documented.")}</p>
               <p><strong>Need:</strong> ${escapeHtml(goal.need || "Not documented.")}</p>
@@ -218,6 +261,41 @@ const buildIepDocumentHtml = ({ title, data }) => {
     </div>
     <h3>Additional Notes</h3><p>${escapeHtml(progressPlan.notes || "None documented.")}</p>`,
   )}
+  ${section(
+    "Recent Progress Notes",
+    recentProgress.length
+      ? recentProgress
+          .map((note) => {
+            const goal = goals.find(
+              (item) => String(item.id) === String(note.goalId),
+            );
+            const score = Number(note.total) > 0
+              ? ` | Score: ${note.score}/${note.total}`
+              : "";
+            return `<h3>${escapeHtml(note.sessionDate || note.createdAt || "Date not specified")} - ${escapeHtml(goal?.area || "Goal")}</h3>
+              <p>${escapeHtml(note.notes || "No note provided")}${escapeHtml(score)}</p>`;
+          })
+          .join("")
+      : "<p>No progress notes provided.</p>",
+  )}
+  ${aiProgressSummary
+    ? section(
+        "Teacher-Reviewed Progress Summary",
+        `<p>${escapeHtml(aiProgressSummary)}</p>`,
+      )
+    : ""}
+  ${section(
+    "Document Preparation and Signatures",
+    `<div class="grid">
+      ${field("Prepared by", preparedBy)}
+      ${field("Date generated", new Date().toLocaleDateString())}
+    </div>
+    <div class="signatures">
+      <div class="signature">${escapeHtml(preparedBy)}<small>Teacher / Case Manager</small></div>
+      <div class="signature">${escapeHtml(student.guardianName || studentInfo.guardianName || "Parent / Guardian")}<small>Parent / Guardian</small></div>
+      <div class="signature">School / IEP Coordinator<small>Signature over printed name / Date</small></div>
+    </div>`,
+  )}
 </body>
 </html>`;
 };
@@ -239,22 +317,30 @@ const makeFileSafe = (value) =>
     .replace(/^-|-$/g, "")
     .toLowerCase();
 
-export const printIepDocument = ({ title, data }) => {
+export const printIepDocument = ({ title, data, student, progressSessions, aiProgressSummary }) => {
   const printWindow = window.open("", "_blank", "noopener,noreferrer");
   if (!printWindow) return false;
 
-  printWindow.document.write(buildIepDocumentHtml({ title, data }));
+  printWindow.document.write(
+    buildIepDocumentHtml({ title, data, student, progressSessions, aiProgressSummary }),
+  );
   printWindow.document.close();
   printWindow.focus();
   printWindow.print();
   return true;
 };
 
-export const downloadIepWordDocument = ({ title, data }) => {
+export const downloadIepWordDocument = ({
+  title,
+  data,
+  student,
+  progressSessions,
+  aiProgressSummary,
+}) => {
   downloadBlob(
-    buildIepDocumentHtml({ title, data }),
+    buildIepDocumentHtml({ title, data, student, progressSessions, aiProgressSummary }),
     `${makeFileSafe(title)}.doc`,
     "application/msword;charset=utf-8",
   );
 };
-import { normalizeGoal } from "../utils/goalUtils";
+import { getGoalStatement, normalizeGoal } from "../utils/goalUtils";

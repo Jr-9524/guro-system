@@ -27,22 +27,22 @@ const reminderConfig = {
   review: {
     label: "Reviews",
     icon: CalendarDays,
-    className: "border border-warning/30 bg-warning/10 text-warning",
+    className: "border border-warning/30 bg-warning/10 text-base-content",
   },
   progress: {
     label: "Progress",
     icon: Target,
-    className: "border-info/30 bg-info/10 text-info",
+    className: "border-info/30 bg-info/10 text-base-content",
   },
   birthday: {
     label: "Birthdays",
     icon: Gift,
-    className: "border-gray-300 bg-success/10 text-success",
+    className: "border-gray-300 bg-success/10 text-base-content",
   },
   draft: {
     label: "Drafts",
     icon: FileText,
-    className: "border-primary/30 bg-primary/10 text-primary",
+    className: "border-primary/30 bg-primary/10 text-base-content",
   },
 };
 
@@ -315,7 +315,7 @@ const buildReminders = (students, ieps, sessions) => {
           detail: `IEP end date: ${formatDate(endDate)}`,
           days: reviewDays,
           priority: getPriority("review", reviewDays),
-          to: `/iep/${iep.id}/edit`,
+          to: `/iep/${iep.id}/view`,
         });
       }
 
@@ -329,7 +329,7 @@ const buildReminders = (students, ieps, sessions) => {
             detail: `Last edited ${formatDate(iep.lastModified)}`,
             days: daysSinceEdit,
             priority: getPriority("draft", daysSinceEdit),
-            to: `/iep/${iep.id}/edit`,
+            to: `/iep/${iep.id}/view`,
           });
         }
       }

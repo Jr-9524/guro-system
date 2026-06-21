@@ -1,66 +1,17 @@
-// src/components/common/Input.jsx - Updated with daisyUI
 import { forwardRef } from "react";
+import { guroInput, guroLabel } from "../../styles/guroStyles";
 
 const Input = forwardRef(
-  (
-    {
-      label,
-      error,
-      helperText,
-      icon: Icon,
-      className = "",
-      wrapperClassName = "",
-      ...props
-    },
-    ref,
-  ) => {
-    return (
-      <div className={`form-control w-full ${wrapperClassName}`}>
-        {label && (
-          <label className="font-bold">
-            <span className="label-text mb-2">
-              {label}
-              {props.required && <span className="text-error ml-1">*</span>}
-            </span>
-          </label>
-        )}
-
-        <div className="relative">
-          {Icon && (
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Icon className="h-5 w-5 text-base-content/40" />
-            </div>
-          )}
-
-          <input
-            ref={ref}
-            className={`
-            input input-bordered w-full p-2  border border-gray-300 focus:border-default focus:outline-none
-            ${error ? "input-error" : ""}
-            ${Icon ? "pl-10" : ""}
-            ${className}
-          `}
-            {...props}
-          />
-        </div>
-
-        {error && (
-          <label className="label">
-            <span className="label-text-alt text-error">{error}</span>
-          </label>
-        )}
-
-        {helperText && !error && (
-          <label className="label">
-            <span className="label-text-alt text-base-content/60">
-              {helperText}
-            </span>
-          </label>
-        )}
+  ({ label, error, helperText, icon: Icon, className = "", wrapperClassName = "", ...props }, ref) => (
+    <div className={`w-full ${wrapperClassName}`}>
+      {label && <label className={guroLabel}>{label}{props.required && <span className="ml-1 text-base-content">*</span>}</label>}
+      <div className="relative">
+        {Icon && <Icon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-base-content/40" />}
+        <input ref={ref} className={`${guroInput} ${error ? "border-error focus:border-error focus:ring-error/10" : ""} ${Icon ? "pl-10" : ""} ${className}`} {...props} />
       </div>
-    );
-  },
+      {error ? <p className="mt-1.5 text-xs font-medium text-base-content">{error}</p> : helperText && <p className="mt-1.5 text-xs leading-5 text-base-content/55">{helperText}</p>}
+    </div>
+  ),
 );
-
 Input.displayName = "Input";
 export default Input;

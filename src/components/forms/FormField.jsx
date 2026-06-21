@@ -1,14 +1,10 @@
+import { guroLabel } from "../../styles/guroStyles";
+
 const FormField = ({ label, children, helperText, required = false }) => (
-  <fieldset className="fieldset w-full">
-    <legend className="fieldset-legend text-sm font-medium mb-1.5 ">
-      {label}
-      {required && <span className="text-error ml-1">*</span>}
-    </legend>
-
+  <fieldset className="w-full">
+    <legend className={guroLabel}>{label}{required && <span className="ml-1 text-base-content">*</span>}</legend>
     {children}
-
-    {helperText && <span className="label text-sm">{helperText}</span>}
+    {helperText && <p className="mt-1.5 text-xs leading-5 text-base-content/55">{helperText}</p>}
   </fieldset>
 );
-
 export default FormField;

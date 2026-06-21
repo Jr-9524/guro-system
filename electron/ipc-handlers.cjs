@@ -3,6 +3,8 @@ const { ipcMain } = require("electron");
 const { getDatabase } = require("./database.cjs");
 const { encryptValue, decryptValue } = require("./encryption.cjs");
 const { v4: uuidv4 } = require("uuid");
+const aiService = require("./ai-service.cjs");
+const backupService = require("./backup-service.cjs");
 
 const ENCRYPTED_STUDENT_FIELDS = [
   "first_name",
@@ -22,6 +24,18 @@ const ENCRYPTED_STUDENT_FIELDS = [
   "guardian_relationship",
 ];
 const MAX_ACTIVITY_ITEMS = 500;
+
+const normalizeRole = (role) => {
+  const value = String(role || "teacher")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  if (value === "admin") return "admin";
+  if (value === "coordinator" || value === "sped_coordinator") {
+    return "sped_coordinator";
+  }
+  return "teacher";
+};
 
 const parseJson = (value, fallback) => {
   try {
@@ -173,7 +187,34 @@ function sortStudentsByName(students) {
 
 function setupIPCHandlers() {
   const db = getDatabase();
+  let currentUserRole = "teacher";
+  const canReadAudit = () =>
+    currentUserRole === "admin" || currentUserRole === "sped_coordinator";
+  const requireAdmin = () =>
+    currentUserRole === "admin"
+      ? null
+      : { success: false, message: "Admin permission is required." };
+
   encryptExistingSensitiveData(db);
+
+  ipcMain.handle("ai:generatePlaafp", async (_event, payload) =>
+    aiService.generatePlaafp(payload),
+  );
+  ipcMain.handle("ai:suggestGoals", async (_event, payload) =>
+    aiService.suggestGoals(payload),
+  );
+  ipcMain.handle("ai:summarizeProgress", async (_event, payload) =>
+    aiService.summarizeProgress(payload),
+  );
+  ipcMain.handle("backup:create", () =>
+    requireAdmin() || backupService.createBackup(),
+  );
+  ipcMain.handle("backup:restore", () =>
+    requireAdmin() || backupService.restoreBackup(),
+  );
+  ipcMain.handle("backup:openFolder", () =>
+    requireAdmin() || backupService.openBackupFolder(),
+  );
 
   // ─── Students ────────────────────────
 
@@ -470,10 +511,12 @@ function setupIPCHandlers() {
   };
 
   ipcMain.handle("audit:getAll", () =>
-    db
-      .prepare("SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT ?")
-      .all(MAX_ACTIVITY_ITEMS)
-      .map(mapAuditRow),
+    canReadAudit()
+      ? db
+          .prepare("SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT ?")
+          .all(MAX_ACTIVITY_ITEMS)
+          .map(mapAuditRow)
+      : [],
   );
 
   ipcMain.handle("audit:log", (event, item) => {
@@ -508,11 +551,13 @@ function setupIPCHandlers() {
   });
 
   ipcMain.handle("audit:clear", () => {
+    if (currentUserRole !== "admin") return false;
     db.prepare("DELETE FROM audit_log").run();
     return true;
   });
 
   ipcMain.handle("audit:replace", (event, items = []) => {
+    if (currentUserRole !== "admin") return false;
     db.prepare("DELETE FROM audit_log").run();
     const insertAudit = db.prepare(
       `
@@ -559,8 +604,28 @@ function setupIPCHandlers() {
       "UPDATE users SET last_login = datetime('now') WHERE id = ?",
     ).run(user.id);
 
+    currentUserRole = normalizeRole(user.role);
     const { password_hash, ...safeUser } = user;
     return { success: true, user: safeUser };
+  });
+
+  ipcMain.handle("auth:resume", (_event, userId) => {
+    const user = db
+      .prepare("SELECT * FROM users WHERE id = ? AND is_active = 1")
+      .get(userId);
+    if (!user) {
+      currentUserRole = "teacher";
+      return { success: false };
+    }
+
+    currentUserRole = normalizeRole(user.role);
+    const { password_hash, ...safeUser } = user;
+    return { success: true, user: safeUser };
+  });
+
+  ipcMain.handle("auth:logout", () => {
+    currentUserRole = "teacher";
+    return true;
   });
 
   ipcMain.handle("auth:register", (event, data) => {
@@ -584,7 +649,7 @@ function setupIPCHandlers() {
       hash,
       data.fullName,
       data.email,
-      data.role || "teacher",
+      "teacher",
     );
 
     return { success: true };

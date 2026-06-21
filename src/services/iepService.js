@@ -64,7 +64,7 @@ class IepService {
         description: saved.title,
         entity: "iep",
         entityId: saved.id,
-        href: `/iep/${saved.id}/edit`,
+        href: `/iep/${saved.id}/view`,
       });
       return saved;
     }
@@ -92,7 +92,7 @@ class IepService {
       description: iep.title,
       entity: "iep",
       entityId: iep.id,
-      href: `/iep/${iep.id}/edit`,
+      href: `/iep/${iep.id}/view`,
     });
     return iep;
   }
@@ -115,7 +115,7 @@ class IepService {
       description: archived.title,
       entity: "iep",
       entityId: archived.id,
-      href: `/iep/${archived.id}/edit`,
+      href: `/iep/${archived.id}/view`,
     });
     return archived;
   }
@@ -134,7 +134,7 @@ class IepService {
       description: restored.title,
       entity: "iep",
       entityId: restored.id,
-      href: `/iep/${restored.id}/edit`,
+      href: `/iep/${restored.id}/view`,
     });
     return restored;
   }
