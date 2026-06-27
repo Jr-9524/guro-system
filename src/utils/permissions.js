@@ -11,6 +11,7 @@ export const PERMISSIONS = Object.freeze({
   GOALBANK_WRITE: "goalbank:write",
   SETTINGS_READ: "settings:read",
   SETTINGS_WRITE: "settings:write",
+  AI_SETTINGS_MANAGE: "settings:ai:manage",
   BACKUP_CREATE: "backup:create",
   BACKUP_RESTORE: "backup:restore",
   AUDIT_READ: "audit:read",
@@ -103,6 +104,12 @@ export const canAccessPath = (user, pathname = "") => {
   if (path.startsWith("/iep") || path === "/goals") return hasPermission(user, PERMISSIONS.IEP_READ);
   if (path.startsWith("/progress")) return hasPermission(user, PERMISSIONS.PROGRESS_READ);
   if (path.startsWith("/reports")) return hasPermission(user, PERMISSIONS.REPORTS_READ);
+  if (path === "/settings/users") {
+    return hasPermission(user, PERMISSIONS.USERS_MANAGE);
+  }
+  if (path === "/settings/ai") {
+    return hasPermission(user, PERMISSIONS.AI_SETTINGS_MANAGE);
+  }
   if (path.startsWith("/settings")) return hasPermission(user, PERMISSIONS.SETTINGS_READ);
   return true;
 };

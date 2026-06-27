@@ -16,8 +16,8 @@ import ButtonLink from "../components/common/ButtonLink";
 import PageHeader from "../components/common/PageHeader";
 import { formatDate, daysUntil } from "../utils/dateUtils";
 import { getIepStudentName } from "../utils/studentUtils";
+import { getIepDates } from "../utils/iepStudentUtils";
 import { getCompletionPercent } from "../utils/iepUtils";
-import { guroTable } from "../styles/guroStyles";
 
 const Dashboard = () => {
   const { user } = useAuthStore();
@@ -58,7 +58,7 @@ const Dashboard = () => {
     const upcomingReviews = ieps
       .map((iep) => ({
         iep,
-        days: daysUntil(iep.data?.studentInfo?.iepEndDate),
+        days: daysUntil(getIepDates(iep).endDate),
       }))
       .filter(({ days }) => days !== null && days >= 0 && days <= 60)
       .sort((a, b) => a.days - b.days)
@@ -77,7 +77,7 @@ const Dashboard = () => {
     <div className="min-h-full w-full space-y-7">
       <PageHeader
         title={`Welcome, ${user?.fullName || "Teacher"}`}
-        description="Review students, IEP activity, and upcoming teacher actions."
+        description="Students, IEPs, and upcoming reviews."
       />
 
       {isLoading ? (
@@ -136,12 +136,12 @@ const Dashboard = () => {
 
 const RecentIepList = ({ ieps }) =>
   ieps.length ? (
-    <div className={guroTable.wrapper}>
+    <div className="divide-y divide-base-300">
       {ieps.map((iep) => (
         <Link
           key={iep.id}
           to={`/iep/${iep.id}/view`}
-          className="flex items-center justify-between gap-3 border-b border-base-300 px-4 py-3 transition-colors last:border-0 hover:bg-base-200"
+          className="flex items-center justify-between gap-3 px-2 py-3 transition-colors hover:bg-base-200/60"
         >
           <span className="min-w-0">
             <span className="block truncate text-sm font-semibold">{iep.title}</span>
@@ -149,12 +149,12 @@ const RecentIepList = ({ ieps }) =>
               {getIepStudentName(iep) || "No student selected"} - Modified {formatDate(iep.lastModified)}
             </span>
           </span>
-          <span className={guroTable.badge}>{getCompletionPercent(iep)}%</span>
+          <span className="text-xs tabular-nums text-base-content/55">{getCompletionPercent(iep)}%</span>
         </Link>
       ))}
     </div>
   ) : (
-    <EmptyPanel message="No IEPs saved yet. Start by creating an IEP for a student." action="/iep/new" actionLabel="Create an IEP" />
+    <EmptyPanel message="No IEPs yet." action="/iep/new" actionLabel="Create an IEP" />
   );
 
 const UpcomingReviewList = ({ items }) =>
@@ -164,22 +164,22 @@ const UpcomingReviewList = ({ items }) =>
         <Link
           key={iep.id}
           to={`/iep/${iep.id}/view`}
-          className="flex items-center justify-between gap-3 rounded-xl border border-base-300 p-3 transition-colors hover:bg-base-200"
+          className="flex items-center justify-between gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-base-200/60"
         >
           <span className="min-w-0">
             <span className="block truncate text-sm font-semibold">
               {getIepStudentName(iep) || iep.title}
             </span>
             <span className="mt-1 block text-xs text-base-content/60">
-              Review ends {formatDate(iep.data?.studentInfo?.iepEndDate)}
+              Review ends {formatDate(getIepDates(iep).endDate)}
             </span>
           </span>
-          <span className="badge badge-warning badge-outline shrink-0">{days} days</span>
+          <span className="shrink-0 text-xs font-semibold text-base-content/60">{days} days</span>
         </Link>
       ))}
     </div>
   ) : (
-    <EmptyPanel message="No IEP reviews are due in the next 60 days." />
+    <EmptyPanel message="No reviews due soon." />
   );
 
 const StudentsWithoutIep = ({ students }) =>
@@ -189,7 +189,7 @@ const StudentsWithoutIep = ({ students }) =>
         <Link
           key={student.id}
           to={`/iep/new?studentId=${student.id}`}
-          className="flex items-center justify-between rounded-xl border border-base-300 p-3 text-sm transition-colors hover:bg-base-200"
+          className="flex items-center justify-between rounded-lg px-2 py-3 text-sm transition-colors hover:bg-base-200/60"
         >
           <span className="font-semibold">{student.firstName} {student.lastName}</span>
           <span className="text-xs font-semibold text-base-content">Create IEP</span>
@@ -197,11 +197,11 @@ const StudentsWithoutIep = ({ students }) =>
       ))}
     </div>
   ) : (
-    <EmptyPanel message="Every student currently has an IEP record." />
+    <EmptyPanel message="All students have an IEP." />
   );
 
 const EmptyPanel = ({ message, action, actionLabel }) => (
-  <div className="flex min-h-28 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-base-300 p-6 text-center">
+  <div className="flex min-h-24 flex-col items-center justify-center gap-3 py-5 text-center">
     <p className="text-sm text-base-content/60">{message}</p>
     {action && <ButtonLink to={action} size="sm">{actionLabel}</ButtonLink>}
   </div>

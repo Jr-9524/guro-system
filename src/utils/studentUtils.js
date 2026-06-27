@@ -1,3 +1,5 @@
+import { getStudentSummaryForIep } from "./iepStudentUtils";
+
 export const getStudentName = (student) =>
   [student?.firstName, student?.lastName].filter(Boolean).join(" ");
 
@@ -15,7 +17,5 @@ export const getStudentInitials = (student) => {
   return initials || "?";
 };
 
-export const getIepStudentName = (iep) => {
-  const info = iep.data?.studentInfo || {};
-  return [info.firstName, info.lastName].filter(Boolean).join(" ");
-};
+export const getIepStudentName = (iep) =>
+  getStudentSummaryForIep(iep).fullName || "";

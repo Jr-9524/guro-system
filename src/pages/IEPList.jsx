@@ -5,7 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Archive, Eye, FileText, Pencil, Plus, RotateCcw } from "lucide-react";
 import toast from "react-hot-toast";
 import Button from "../components/common/Button";
-import ButtonLink from "../components/common/ButtonLink";
+import ActionMenu from "../components/common/ActionMenu";
 import SearchInput from "../components/common/SearchInput";
 import IepTabs from "../components/common/IepTabs";
 import Pagination from "../components/common/Pagination";
@@ -147,7 +147,7 @@ const IEPList = ({ view = "drafts" }) => {
         placeholder="Search IEPs..."
       />
 
-      <section className="overflow-hidden rounded-lg border border-gray-300 bg-base-100">
+      <section className="rounded-md border border-base-300 bg-base-100 overflow-hidden">
         {isLoading ? (
           <div className="flex min-h-[16rem] items-center justify-center">
             <span className="loading loading-spinner loading-lg"></span>
@@ -179,43 +179,38 @@ const IEPList = ({ view = "drafts" }) => {
                   <span className="badge badge-outline">
                     {iep.completedSections.length}/6 sections
                   </span>
-                  <ButtonLink
-                    to={"/iep/" + iep.id + "/view"}
-                    icon={Eye}
-                    size="sm"
-                    variant="secondary"
-                  >
-                    View
-                  </ButtonLink>
-                  <ButtonLink
-                    to={"/iep/" + iep.id + "/edit"}
-                    icon={Pencil}
-                    size="sm"
-                    variant="secondary"
-                  >
-                    Edit
-                  </ButtonLink>
-                  {view === "archive" ? (
-                    <Button
-                      type="button"
-                      icon={RotateCcw}
-                      className="btn-outline btn-sm"
-                      disabled={busyIepId === iep.id}
-                      onClick={() => handleRestore(iep)}
-                    >
-                      Restore
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      icon={Archive}
-                      className="btn-outline btn-sm"
-                      disabled={busyIepId === iep.id}
-                      onClick={() => handleArchive(iep)}
-                    >
-                      Archive
-                    </Button>
-                  )}
+                  <ActionMenu
+                    label={`Actions for ${iep.title}`}
+                    items={[
+                      {
+                        id: "view",
+                        label: "View IEP",
+                        icon: Eye,
+                        to: `/iep/${iep.id}/view`,
+                      },
+                      {
+                        id: "edit",
+                        label: "Edit IEP",
+                        icon: Pencil,
+                        to: `/iep/${iep.id}/edit`,
+                      },
+                      view === "archive"
+                        ? {
+                            id: "restore",
+                            label: "Restore IEP",
+                            icon: RotateCcw,
+                            disabled: busyIepId === iep.id,
+                            onClick: () => handleRestore(iep),
+                          }
+                        : {
+                            id: "archive",
+                            label: "Archive IEP",
+                            icon: Archive,
+                            disabled: busyIepId === iep.id,
+                            onClick: () => handleArchive(iep),
+                          },
+                    ]}
+                  />
                 </div>
               </div>
             ))}

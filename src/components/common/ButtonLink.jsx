@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { guroButtonSizes, guroButtonVariants } from "../../styles/guroStyles";
+import { guroBase, guroButtonSizes, guroButtonVariants } from "../../styles/guroStyles";
 
 const ButtonLink = ({
   to,
@@ -10,8 +10,7 @@ const ButtonLink = ({
   className = "",
   ...props
 }) => {
-  const baseClass =
-    "inline-flex items-center justify-center gap-2 rounded-xl font-semibold shadow-sm transition-all duration-200";
+  const baseClass = guroBase.button;
 
   const variants = {
     ...guroButtonVariants,

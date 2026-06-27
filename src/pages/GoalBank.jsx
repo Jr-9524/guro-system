@@ -7,7 +7,6 @@ import Button from "../components/common/Button";
 import Modal from "../components/common/Modal";
 import CreatableSelectInput from "../components/forms/CreatableSelectInput";
 import SelectFilter from "../components/filters/SelectFilter";
-import Stat from "../components/common/Stat";
 import TextAreaInput from "../components/forms/TextAreaInput";
 import SearchInput from "../components/common/SearchInput";
 import IepTabs from "../components/common/IepTabs";
@@ -27,6 +26,8 @@ import {
   normalizeGoalTemplate,
   reportingSchedules,
 } from "../utils/goalUtils";
+import ActionMenu from "../components/common/ActionMenu";
+import Tooltip from "../components/common/Tooltip";
 
 const createEmptyTemplate = () => ({
   area: "",
@@ -69,9 +70,7 @@ const GoalBank = () => {
     [customGoals],
   );
   const areas = useMemo(
-    () => [
-      ...new Set(goals.map((goal) => goal.area).filter(Boolean)),
-    ],
+    () => [...new Set(goals.map((goal) => goal.area).filter(Boolean))],
     [goals],
   );
   const skillFocusOptions = useMemo(
@@ -79,7 +78,9 @@ const GoalBank = () => {
     [goals],
   );
   const tagOptions = useMemo(
-    () => [...new Set(goals.flatMap((goal) => goal.tags || []).filter(Boolean))],
+    () => [
+      ...new Set(goals.flatMap((goal) => goal.tags || []).filter(Boolean)),
+    ],
     [goals],
   );
   const filteredGoals = useMemo(() => {
@@ -88,7 +89,13 @@ const GoalBank = () => {
     return goals.filter((goal) => {
       const matchesQuery =
         !normalizedQuery ||
-        [goal.skillFocus, goal.goalText, goal.area, goal.difficulty, ...goal.tags]
+        [
+          goal.skillFocus,
+          goal.goalText,
+          goal.area,
+          goal.difficulty,
+          ...goal.tags,
+        ]
           .filter(Boolean)
           .some((value) => value.toLowerCase().includes(normalizedQuery));
       const matchesArea = areaFilter === "all" || goal.area === areaFilter;
@@ -136,7 +143,9 @@ const GoalBank = () => {
     setDraftGoal(createEmptyTemplate());
     setEditingGoalId(null);
     setIsModalOpen(false);
-    toast.success(editingGoalId ? "Goal template updated" : "Goal template saved");
+    toast.success(
+      editingGoalId ? "Goal template updated" : "Goal template saved",
+    );
   };
 
   const editCustomGoal = (goal) => {
@@ -162,7 +171,7 @@ const GoalBank = () => {
     <div className="min-h-full w-full space-y-5">
       <PageHeader
         title="Goal Bank"
-        description="Find measurable goal templates or create an editable template for future IEPs."
+        description="Find and reuse measurable goals."
         actions={
           <Button onClick={openNewTemplate} icon={Plus}>
             Create Custom Goal
@@ -170,24 +179,7 @@ const GoalBank = () => {
         }
       />
       <IepTabs activeId="goals" />
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <Stat
-          label="Templates"
-          value={goals.length}
-          // icon={CheckCircle2}
-        />
-        <Stat
-          label="Custom"
-          value={customGoals.length}
-          // icon={CheckCircle2}
-        />
-        <Stat
-          label="Areas"
-          value={areas.length}
-          // icon={CheckCircle2}
-        />
-      </div>
-      <section className="rounded-sm border border-gray-300 bg-base-100 p-2">
+      <section>
         <div className="grid gap-3 lg:grid-cols-3">
           <SearchInput
             value={query}
@@ -226,8 +218,8 @@ const GoalBank = () => {
         </div>
       </section>
 
-      <div className="grid gap-4">
-        <section className="grid gap-3">
+      <div className="rounded-md border border-base-300 bg-base-100 overflow-hidden">
+        <section className="divide-y divide-base-300 ">
           {filteredGoals.length > 0 ? (
             pagination.currentItems.map((goal) => (
               <GoalCard
@@ -237,9 +229,7 @@ const GoalBank = () => {
                 onSend={() => sendToIep(goal)}
                 onEdit={goal.isCustom ? () => editCustomGoal(goal) : null}
                 onDelete={
-                  goal.isCustom
-                    ? () => deleteCustomGoal(goal.id)
-                    : null
+                  goal.isCustom ? () => deleteCustomGoal(goal.id) : null
                 }
               />
             ))
@@ -422,41 +412,28 @@ const GoalBank = () => {
 };
 
 const GoalCard = ({ goal, onCopy, onSend, onEdit, onDelete }) => (
-  <article className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+  <article className="py-3">
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between px-5">
       <div className="min-w-0">
-        <div className="mb-2 flex flex-wrap gap-3">
-          <span className="badge badge-outline">{goal.area}</span>
-          <span className="badge badge-ghost">{goal.difficulty}</span>
-          {goal.isCustom && (
-            <span className="badge badge-primary">Custom</span>
-          )}
-        </div>
-
+        <p className="text-xs font-semibold uppercase tracking-wide text-base-content/50">
+          {goal.area || "General"}
+        </p>
         <h2 className="text-base font-semibold">{goal.skillFocus}</h2>
         <p className="mt-2 text-sm leading-relaxed text-base-content/70">
           {goal.goalText}
         </p>
-        <div className="mt-3 grid gap-2 text-xs text-base-content/60 md:grid-cols-2">
-          <p>
-            <span className="font-semibold">Monitoring:</span>{" "}
-            {goal.measurementMethod || "Not set"} / {goal.frequency}
-          </p>
-          <p>
-            <span className="font-semibold">Objectives:</span>{" "}
-            {goal.objectives.length} / Reports {goal.reportingSchedule}
-          </p>
-        </div>
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
-        <Button onClick={onCopy} icon={ClipboardCopy}>
-          Copy
-        </Button>
-        <Button onClick={onSend} icon={Send}>
-          Use Template
-        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onCopy}
+          icon={ClipboardCopy}
+        ></Button>
+
+        <Button size="sm" onClick={onSend} icon={Send} variant="ghost"></Button>
         {onEdit && (
-          <Button variant="secondary" onClick={onEdit} icon={Pencil}>
+          <Button variant="ghost" size="sm" onClick={onEdit} icon={Pencil}>
             Edit
           </Button>
         )}

@@ -21,6 +21,7 @@ import SelectInput from "../components/forms/SelectInput";
 import CreatableSelectInput from "../components/forms/CreatableSelectInput";
 import iepService from "../services/iepService";
 import progressService from "../services/progressService";
+import aiSettingsService from "../services/aiSettingsService";
 import { formatDate } from "../utils/dateUtils";
 import { getIepStudentName } from "../utils/studentUtils";
 import { getGoalStatement, normalizeGoal } from "../utils/goalUtils";
@@ -304,6 +305,10 @@ const ProgressMonitoring = () => {
       toast.error("AI progress summaries are available in the GURO desktop app");
       return;
     }
+    if (!(await aiSettingsService.isConfigured())) {
+      toast.error("AI is not configured. Please ask an administrator to set it up in Settings.");
+      return;
+    }
 
     setIsGeneratingSummary(true);
     try {
@@ -336,11 +341,11 @@ const ProgressMonitoring = () => {
     <div className="min-h-full w-full space-y-5">
       <PageHeader
         title="Progress Monitoring"
-        description="Review goal progress and record teacher observations after learning activities."
+        description="Track goal progress and notes."
         actions={
           <>
-            <Button variant="secondary" icon={Sparkles} loading={isGeneratingSummary} disabled={!selectedIep || isSessionLoading} onClick={generateProgressSummary}>
-              {isGeneratingSummary ? "Generating summary..." : "Generate Progress Summary"}
+            <Button variant="ghost" icon={Sparkles} loading={isGeneratingSummary} disabled={!selectedIep || isSessionLoading} onClick={generateProgressSummary}>
+              {isGeneratingSummary ? "Generating..." : "AI Summary"}
             </Button>
             <Button icon={Plus} onClick={() => openNoteModal()}>
               Add Progress Note
@@ -355,11 +360,11 @@ const ProgressMonitoring = () => {
         </div>
       ) : (
         <>
-          <section className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
+          <section className="rounded-xl bg-base-100 p-4">
             <div className="max-w-xl">
               <CreatableSelectInput
                 label="Student"
-                helperText="Select the learner whose IEP goals you want to review."
+                helperText="Choose a learner."
                 value={selectedStudentId}
                 onChange={handleStudentSelect}
                 options={studentOptions}
@@ -394,13 +399,13 @@ const ProgressMonitoring = () => {
             <EmptyState
               icon={Target}
               title="Select a student"
-              message="Select a student to view progress records and goal updates."
+              message="Choose a learner."
             />
           ) : !goals.length ? (
             <EmptyState
               icon={Target}
               title="No IEP goals available"
-              message="Create or save an IEP with annual goals before recording progress."
+              message="No goals available."
             />
           ) : (
             <>
@@ -455,13 +460,7 @@ const ProgressMonitoring = () => {
 
               {activeTab === "goals" && (
                 <section className="space-y-4">
-                  <div>
-                    <h2 className="text-lg font-bold">Goal Progress</h2>
-                    <p className="mt-1 text-sm text-base-content/60">
-                      Progress percentage is based on the most recent recorded
-                      score for each goal.
-                    </p>
-                  </div>
+                  <h2 className="text-lg font-bold">Goal Progress</h2>
                   {isSessionLoading ? (
                     <ProgressLoading />
                   ) : (
@@ -480,11 +479,10 @@ const ProgressMonitoring = () => {
               )}
 
               {activeTab === "timeline" && (
-                <section className="max-w-3xl rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
+                <section className="max-w-3xl rounded-xl bg-base-100 p-5">
                   <h2 className="text-lg font-bold">Progress Timeline</h2>
                   <p className="mb-5 mt-1 text-sm text-base-content/60">
-                    Add a note after an activity, assessment, or meaningful
-                    observation.
+                    Recent progress notes.
                   </p>
                   {isSessionLoading ? (
                     <ProgressLoading />
@@ -512,11 +510,10 @@ const ProgressMonitoring = () => {
               )}
 
               {activeTab === "attention" && (
-                <section className="max-w-3xl rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
+                <section className="max-w-3xl rounded-xl bg-base-100 p-5">
                   <h2 className="text-lg font-bold">Needs Attention</h2>
                   <p className="mb-5 mt-1 text-sm text-base-content/60">
-                    Goals appear here when progress is below 50% or no update
-                    has been recorded for more than 14 days.
+                    Goals needing a new update.
                   </p>
                   {isSessionLoading ? (
                     <ProgressLoading />
@@ -554,7 +551,7 @@ const ProgressMonitoring = () => {
 };
 
 const GoalCard = ({ item, onAddNote, onUpdate }) => (
-  <article className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
+  <article className="rounded-xl border border-base-300 bg-base-100 p-4">
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <p className="text-xs font-bold uppercase tracking-wide text-base-content">
@@ -800,7 +797,7 @@ const ProgressNoteForm = ({
         Teacher note
       </span>
       <textarea
-        className="min-h-28 rounded-xl border border-base-300 bg-base-100 px-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
+        className="min-h-28 rounded-sm border border-base-300 bg-base-100 px-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-0"
         value={formData.notes}
         onChange={(event) =>
           setFormData((current) => ({ ...current, notes: event.target.value }))
@@ -813,7 +810,7 @@ const ProgressNoteForm = ({
         Teacher observation
       </span>
       <textarea
-        className="min-h-24 rounded-xl border border-base-300 bg-base-100 px-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
+        className="min-h-24 rounded-sm border border-base-300 bg-base-100 px-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-0"
         value={formData.teacherObservation}
         onChange={(event) =>
           setFormData((current) => ({
@@ -837,7 +834,7 @@ const ProgressNoteForm = ({
 );
 
 const EmptyState = ({ icon: Icon, title, message }) => (
-  <div className="rounded-2xl border border-dashed border-base-300 bg-base-100 p-10 text-center">
+  <div className="rounded-xl border border-dashed border-base-300 p-7 text-center">
     <Icon className="mx-auto h-10 w-10 text-base-content/35" />
     <p className="mt-3 font-semibold">{title}</p>
     <p className="mx-auto mt-1 max-w-lg text-sm text-base-content/60">

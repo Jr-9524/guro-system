@@ -14,6 +14,7 @@ import {
   Notebook,
   Palette,
   History,
+  Bot,
 } from "lucide-react";
 import Button from "../components/common/Button";
 import Stat from "../components/common/Stat";
@@ -59,12 +60,10 @@ const Settings = () => {
   const [restoreBackup, setRestoreBackup] = useState(null);
   const [restoreError, setRestoreError] = useState("");
   const [isRestoring, setIsRestoring] = useState(false);
-  const [isDatabaseBackupRunning, setIsDatabaseBackupRunning] =
-    useState(false);
+  const [isDatabaseBackupRunning, setIsDatabaseBackupRunning] = useState(false);
   const [isDatabaseRestoreRunning, setIsDatabaseRestoreRunning] =
     useState(false);
-  const [databaseRestoreComplete, setDatabaseRestoreComplete] =
-    useState(false);
+  const [databaseRestoreComplete, setDatabaseRestoreComplete] = useState(false);
 
   useEffect(() => {
     let isCurrent = true;
@@ -257,7 +256,7 @@ const Settings = () => {
     <div className="min-h-full w-full space-y-5">
       <PageHeader
         title="Settings"
-        description="Manage appearance, workspace preferences, and permitted data tools."
+        description="Appearance, preferences, and administration."
       />
 
       <div className="grid gap-4 xl:grid">
@@ -265,9 +264,9 @@ const Settings = () => {
           <SettingsPanel
             icon={Palette}
             title="Appearance"
-            description="Choose how GURO looks on this device."
+            description="Choose the app theme."
           >
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="divide-y divide-base-300 overflow-hidden rounded-xl border border-base-300 bg-base-100">
               {themeOptions.map((theme) => (
                 <ThemeOption
                   key={theme.id}
@@ -282,12 +281,13 @@ const Settings = () => {
           <SettingsPanel
             icon={MonitorCog}
             title="Workspace Preferences"
-            description="These preferences are saved locally on this device."
+            description="These choices are saved locally, but they do not change app behavior yet."
+            status="wip"
           >
             <div className="divide-y divide-gray-300 rounded-md border border-gray-300">
               <PreferenceToggle
                 title="Auto-save IEP draft workflow"
-                description="Keep draft-oriented controls enabled while writing IEPs."
+                description="Keep draft controls available."
                 checked={preferences.autoSaveIepDrafts}
                 onChange={(value) =>
                   updatePreference("autoSaveIepDrafts", value)
@@ -295,7 +295,7 @@ const Settings = () => {
               />
               <PreferenceToggle
                 title="Calendar review reminders"
-                description="Show 30-day IEP review preparation items on the calendar."
+                description="Show upcoming review reminders."
                 checked={preferences.calendarReviewReminders}
                 onChange={(value) =>
                   updatePreference("calendarReviewReminders", value)
@@ -303,7 +303,7 @@ const Settings = () => {
               />
               <PreferenceToggle
                 title="Compact report tables"
-                description="Prefer denser report layouts for printing and scanning."
+                description="Use compact report tables."
                 checked={preferences.compactReportTables}
                 onChange={(value) =>
                   updatePreference("compactReportTables", value)
@@ -312,7 +312,8 @@ const Settings = () => {
             </div>
             <div className="mt-4">
               <button
-                className="btn border border-gray-300 px-5 bg-gray-100 transition-colors hover:bg-gray-200"
+                type="button"
+                className="btn border border-base-300 bg-base-100 px-5 text-base-content transition-colors hover:bg-base-200"
                 onClick={resetPreferences}
               >
                 Reset Preferences
@@ -324,15 +325,47 @@ const Settings = () => {
             <SettingsPanel
               icon={History}
               title="Administration"
-            description="Secondary workspace tools for review and troubleshooting."
-          >
-            <Link
-              to="/activity"
-              className="flex items-center justify-between rounded-xl border border-base-300 p-4 text-sm font-semibold transition-colors hover:bg-base-200 hover:text-base-content"
+              description="Review workspace activity."
             >
-              <span>Open Activity Log</span>
-              <span aria-hidden="true">View</span>
-            </Link>
+              <Link
+                to="/activity"
+                className="flex items-center justify-between rounded-lg border border-base-300 p-3 text-sm font-semibold transition-colors hover:bg-base-200 hover:text-base-content"
+              >
+                <span>Open Activity Log</span>
+                <span aria-hidden="true">View</span>
+              </Link>
+            </SettingsPanel>
+          )}
+
+          {isAdmin(user) && (
+            <SettingsPanel
+              icon={Bot}
+              title="AI Provider"
+              description="Configure the AI provider, API key, base URL, and model."
+            >
+              <Link
+                to="/settings/ai"
+                className="flex items-center justify-between rounded-lg border border-base-300 p-3 text-sm font-semibold transition-colors hover:bg-base-200 hover:text-base-content"
+              >
+                <span>Manage AI Provider</span>
+                <span aria-hidden="true">Open</span>
+              </Link>
+            </SettingsPanel>
+          )}
+
+          {isAdmin(user) && (
+            <SettingsPanel
+              icon={Users}
+              title="User Management"
+              description="Manage accounts and roles."
+            >
+              <Link
+                to="/settings/users"
+                className="flex items-center justify-between rounded-lg border border-base-300 p-3 text-sm font-semibold transition-colors hover:bg-base-200 hover:text-base-content"
+              >
+                <span>Manage Users</span>
+                <span aria-hidden="true">Open</span>
+              </Link>
             </SettingsPanel>
           )}
 
@@ -340,122 +373,131 @@ const Settings = () => {
             <SettingsPanel
               icon={Database}
               title="Data Management"
-            description="Protect, restore, and transfer the local GURO data on this device."
-          >
-            <div className="grid gap-3 md:grid-cols-4">
-              <Stat label="Students" value={students.length} icon={Users} />
-              <Stat label="IEPs" value={ieps.length} icon={FileText} />
-              <Stat
-                label="Active IEPs"
-                value={storageStats.activeIeps}
-                icon={CheckCircle2}
-              />
-              <Stat
-                label="Drafts"
-                value={storageStats.draftIeps}
-                icon={Notebook}
-              />
-            </div>
+              description="Back up and restore local data."
+            >
+              <div className="grid gap-3 md:grid-cols-4">
+                <Stat label="Students" value={students.length} icon={Users} />
+                <Stat label="IEPs" value={ieps.length} icon={FileText} />
+                <Stat
+                  label="Active IEPs"
+                  value={storageStats.activeIeps}
+                  icon={CheckCircle2}
+                />
+                <Stat
+                  label="Drafts"
+                  value={storageStats.draftIeps}
+                  icon={Notebook}
+                />
+              </div>
 
-            <div className="mt-5 rounded-xl border border-base-300 bg-base-200/40 p-4">
-              <div className="flex items-start gap-3">
-                <Database className="mt-0.5 h-5 w-5 shrink-0" />
+              <div className="mt-5 rounded-xl border border-base-300 bg-base-200/40 p-4">
+                <div className="flex items-start gap-3">
+                  <Database className="mt-0.5 h-5 w-5 shrink-0" />
+                  <div>
+                    <h3 className="font-semibold">Full Database Backup</h3>
+                    <p className="mt-1 text-sm text-base-content/65">
+                      Backups help prevent data loss. Store backup files in a
+                      safe location such as a USB drive or cloud folder.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    icon={Download}
+                    loading={isDatabaseBackupRunning}
+                    disabled={
+                      isDatabaseRestoreRunning || databaseRestoreComplete
+                    }
+                    onClick={createDatabaseBackup}
+                  >
+                    Create Backup
+                  </Button>
+                  <Button
+                    icon={Upload}
+                    variant="secondary"
+                    loading={isDatabaseRestoreRunning}
+                    disabled={
+                      isDatabaseBackupRunning || databaseRestoreComplete
+                    }
+                    onClick={restoreDatabaseBackup}
+                  >
+                    Restore Backup
+                  </Button>
+                  <Button
+                    icon={FolderOpen}
+                    variant="secondary"
+                    disabled={
+                      isDatabaseBackupRunning || isDatabaseRestoreRunning
+                    }
+                    onClick={openDatabaseBackupFolder}
+                  >
+                    Open Backup Folder
+                  </Button>
+                </div>
+
+                {databaseRestoreComplete && (
+                  <div className="mt-4 rounded-lg border border-success/30 bg-success/10 p-3 text-sm font-semibold">
+                    Restore completed. Please restart GURO System to reload the
+                    restored data.
+                  </div>
+                )}
+
+                <div className="mt-4 flex gap-2 rounded-lg border border-base-300 p-3 text-sm">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-base-content" />
+                  <p>
+                    <span className="font-semibold">
+                      Restore will replace the current local database.
+                    </span>{" "}
+                    GURO automatically creates a safety backup first, then asks
+                    you to restart the app. Full database backups are intended
+                    for this GURO installation because encrypted records use its
+                    protected device key.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 rounded-lg border border-dashed border-gray-300 p-4 text-sm text-base-content/70 md:grid-cols-2">
                 <div>
-                  <h3 className="font-semibold">Full Database Backup</h3>
-                  <p className="mt-1 text-sm text-base-content/65">
-                    Backups help prevent data loss. Store backup files in a safe
-                    location such as a USB drive or cloud folder.
+                  <p className="font-medium text-base-content">
+                    Portable workspace transfer
+                  </p>
+                  <p className="mt-1">
+                    Students, IEPs, progress logs, goal templates, reminders,
+                    selected theme, and preferences.
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium text-base-content">Storage</p>
+                  <p className="mt-1">
+                    Restore merges records into the current workspace and skips
+                    duplicate student LRNs.
                   </p>
                 </div>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button
+                  onClick={exportBackup}
                   icon={Download}
-                  loading={isDatabaseBackupRunning}
-                  disabled={isDatabaseRestoreRunning || databaseRestoreComplete}
-                  onClick={createDatabaseBackup}
+                  disabled={isLoading}
                 >
-                  Create Backup
+                  Download Portable Backup
                 </Button>
                 <Button
+                  onClick={() => setIsRestoreModalOpen(true)}
                   icon={Upload}
-                  variant="secondary"
-                  loading={isDatabaseRestoreRunning}
-                  disabled={isDatabaseBackupRunning || databaseRestoreComplete}
-                  onClick={restoreDatabaseBackup}
+                  disabled={isLoading}
                 >
-                  Restore Backup
+                  Merge Portable Backup
                 </Button>
-                <Button
-                  icon={FolderOpen}
-                  variant="ghost"
-                  disabled={
-                    isDatabaseBackupRunning || isDatabaseRestoreRunning
-                  }
-                  onClick={openDatabaseBackupFolder}
+                <Link
+                  to="/reports"
+                  className="btn border border-base-300 rounded-xl"
                 >
-                  Open Backup Folder
-                </Button>
+                  <FileText className="h-5 w-5" /> View Reports
+                </Link>
               </div>
-
-              {databaseRestoreComplete && (
-                <div className="mt-4 rounded-lg border border-success/30 bg-success/10 p-3 text-sm font-semibold">
-                  Restore completed. Please restart GURO System to reload the
-                  restored data.
-                </div>
-              )}
-
-              <div className="mt-4 flex gap-2 rounded-lg border border-warning/25 bg-warning/10 p-3 text-sm">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-base-content" />
-                <p>
-                  <span className="font-semibold">
-                    Restore will replace the current local database.
-                  </span>{" "}
-                  GURO automatically creates a safety backup first, then asks
-                  you to restart the app. Full database backups are intended
-                  for this GURO installation because encrypted records use its
-                  protected device key.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 rounded-lg border border-dashed border-gray-300 p-4 text-sm text-base-content/70 md:grid-cols-2">
-              <div>
-                <p className="font-medium text-base-content">Portable workspace transfer</p>
-                <p className="mt-1">
-                  Students, IEPs, progress logs, goal templates, reminders,
-                  selected theme, and preferences.
-                </p>
-              </div>
-              <div>
-                <p className="font-medium text-base-content">Storage</p>
-                <p className="mt-1">
-                  Restore merges records into the current workspace and skips
-                  duplicate student LRNs.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button
-                onClick={exportBackup}
-                icon={Download}
-                disabled={isLoading}
-              >
-                Download Portable Backup
-              </Button>
-              <Button
-                onClick={() => setIsRestoreModalOpen(true)}
-                icon={Upload}
-                disabled={isLoading}
-              >
-                Merge Portable Backup
-              </Button>
-              <Link to="/reports" className="btn">
-                <FileText className="h-5 w-5" /> View Reports
-              </Link>
-            </div>
             </SettingsPanel>
           )}
         </div>
@@ -480,14 +522,23 @@ const Settings = () => {
   );
 };
 
-const SettingsPanel = ({ icon: Icon, title, description, children }) => (
-  <section className="rounded-sm border border-gray-300 bg-base-100 p-5">
+const StatusBadge = () => (
+  <span className="shrink-0 text-xs font-semibold uppercase tracking-wide">
+    W.I.P.
+  </span>
+);
+
+const SettingsPanel = ({ icon: Icon, title, description, status, children }) => (
+  <section className="rounded-md border border-base-300 bg-base-100 p-5">
     <div className="mb-4 flex items-start gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-        <Icon className="h-5 w-5" />
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center text-base-content/60">
+        <Icon className="h-4 w-4" />
       </div>
-      <div>
-        <h2 className="text-base font-semibold">{title}</h2>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-base font-semibold">{title}</h2>
+          {status && <StatusBadge status={status} />}
+        </div>
         {description && (
           <p className="mt-1 text-sm text-base-content/60">{description}</p>
         )}
@@ -525,14 +576,12 @@ const ThemeOption = ({ theme, selected, onSelect }) => {
       type="button"
       onClick={onSelect}
       aria-pressed={selected}
-      className={`flex items-center gap-4 rounded-xl border p-4 text-left transition-all ${
-        selected
-          ? "border-primary bg-primary/10 ring-2 ring-primary/15"
-          : "border-base-300 bg-base-100 hover:border-primary/40 hover:bg-base-200"
+      className={`flex w-full items-center gap-4 px-4 py-3 text-left transition-colors ${
+        selected ? "bg-primary/10" : "bg-base-100 hover:bg-base-200"
       }`}
     >
       <span
-        className="grid h-11 w-11 shrink-0 grid-cols-2 overflow-hidden rounded-xl border border-base-300 shadow-sm"
+        className="grid h-10 w-12 shrink-0 grid-cols-2 overflow-hidden rounded-lg border border-base-300 shadow-sm"
         aria-hidden="true"
       >
         <span style={{ backgroundColor: colors.primary }} />
@@ -546,9 +595,16 @@ const ThemeOption = ({ theme, selected, onSelect }) => {
           {theme.mode} theme
         </span>
       </span>
-      {selected && (
-        <CheckCircle2 className="h-5 w-5 shrink-0 text-base-content" />
-      )}
+      <span
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
+          selected
+            ? "border-primary bg-primary text-primary-content"
+            : "border-base-300 bg-base-100"
+        }`}
+        aria-hidden="true"
+      >
+        {selected && <CheckCircle2 className="h-4 w-4" />}
+      </span>
     </button>
   );
 };

@@ -4,6 +4,7 @@ const { getDatabase } = require("./database.cjs");
 const { encryptValue, decryptValue } = require("./encryption.cjs");
 const { v4: uuidv4 } = require("uuid");
 const aiService = require("./ai-service.cjs");
+const aiSettingsService = require("./ai-settings-service.cjs");
 const backupService = require("./backup-service.cjs");
 
 const ENCRYPTED_STUDENT_FIELDS = [
@@ -35,6 +36,34 @@ const normalizeRole = (role) => {
     return "sped_coordinator";
   }
   return "teacher";
+};
+
+const validateAccountData = (data = {}) => {
+  const fullName = String(data.fullName || "").trim();
+  const username = String(data.username || "").trim();
+  const email = String(data.email || "").trim();
+  const password = String(data.password || "");
+  if (!fullName) return "Full name is required.";
+  if (!username) return "Username is required.";
+  if (username.length < 3) return "Username must be at least 3 characters.";
+  if (password.length < 8) return "Password must be at least 8 characters.";
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Enter a valid email address.";
+  return null;
+};
+
+const toSafeUser = (user) => {
+  if (!user) return null;
+  return {
+    id: user.id,
+    username: user.username,
+    full_name: user.full_name,
+    email: user.email || "",
+    role: normalizeRole(user.role),
+    is_active: Number(user.is_active ?? 1),
+    last_login: user.last_login || null,
+    created_at: user.created_at || null,
+    updated_at: user.updated_at || null,
+  };
 };
 
 const parseJson = (value, fallback) => {
@@ -188,6 +217,8 @@ function sortStudentsByName(students) {
 function setupIPCHandlers() {
   const db = getDatabase();
   let currentUserRole = "teacher";
+  let currentUserId = null;
+  let currentSessionToken = null;
   const canReadAudit = () =>
     currentUserRole === "admin" || currentUserRole === "sped_coordinator";
   const requireAdmin = () =>
@@ -205,6 +236,38 @@ function setupIPCHandlers() {
   );
   ipcMain.handle("ai:summarizeProgress", async (_event, payload) =>
     aiService.summarizeProgress(payload),
+  );
+
+  // Admin configures credentials; teachers can only check readiness and use AI.
+  ipcMain.handle("ai-settings:get", () => {
+    const denied = requireAdmin();
+    if (denied) return { success: false, error: denied.message };
+    return { success: true, settings: aiSettingsService.getPublicSettings() };
+  });
+  ipcMain.handle("ai-settings:save", (_event, settings) => {
+    const denied = requireAdmin();
+    if (denied) return { success: false, error: denied.message };
+    try {
+      return {
+        success: true,
+        settings: aiSettingsService.saveSettings(settings),
+      };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle("ai-settings:remove", () => {
+    const denied = requireAdmin();
+    if (denied) return { success: false, error: denied.message };
+    return aiSettingsService.removeSettings();
+  });
+  ipcMain.handle("ai-settings:test", async (_event, settings) => {
+    const denied = requireAdmin();
+    if (denied) return { success: false, message: denied.message };
+    return aiService.testConnection(settings);
+  });
+  ipcMain.handle("ai-settings:is-configured", () =>
+    aiSettingsService.isConfigured(),
   );
   ipcMain.handle("backup:create", () =>
     requireAdmin() || backupService.createBackup(),
@@ -589,69 +652,127 @@ function setupIPCHandlers() {
 
   // ─── Auth ────────────────────────────
 
-  ipcMain.handle("auth:login", (event, { username, password }) => {
+  const getUserCount = () => db.prepare("SELECT COUNT(*) AS count FROM users").get().count;
+  const getActiveAdminCount = () => db.prepare("SELECT COUNT(*) AS count FROM users WHERE LOWER(TRIM(role)) = 'admin' AND is_active = 1").get().count;
+  const findUserByUsername = (username) => db.prepare("SELECT * FROM users WHERE LOWER(username) = LOWER(?)").get(String(username || "").trim());
+  const insertUser = (data, forcedRole) => {
+    const validationError = validateAccountData(data);
+    if (validationError) return { success: false, error: validationError };
+    if (findUserByUsername(data.username)) return { success: false, error: "Username already exists." };
     const bcrypt = require("bcryptjs");
-    const user = db
-      .prepare("SELECT * FROM users WHERE username = ? AND is_active = 1")
-      .get(username);
+    const id = uuidv4();
+    db.prepare("INSERT INTO users (id, username, password_hash, full_name, email, role) VALUES (?, ?, ?, ?, ?, ?)").run(
+      id, String(data.username).trim(), bcrypt.hashSync(String(data.password), 12),
+      String(data.fullName).trim(), String(data.email || "").trim() || null, normalizeRole(forcedRole ?? data.role),
+    );
+    return { success: true, user: toSafeUser(db.prepare("SELECT * FROM users WHERE id = ?").get(id)) };
+  };
+  const adminDenied = () => {
+    const denied = requireAdmin();
+    return denied ? { success: false, error: denied.message || "Admin permission is required." } : null;
+  };
 
-    if (!user) return { success: false, error: "Invalid credentials" };
+  ipcMain.handle("auth:getUserCount", () => ({ success: true, count: getUserCount() }));
 
-    const valid = bcrypt.compareSync(password, user.password_hash);
-    if (!valid) return { success: false, error: "Invalid credentials" };
-
-    db.prepare(
-      "UPDATE users SET last_login = datetime('now') WHERE id = ?",
-    ).run(user.id);
-
-    currentUserRole = normalizeRole(user.role);
-    const { password_hash, ...safeUser } = user;
-    return { success: true, user: safeUser };
+  ipcMain.handle("auth:createFirstAdmin", (_event, data) => {
+    const createFirstAdmin = db.transaction((accountData) => {
+      if (getUserCount() !== 0) return { success: false, error: "First administrator setup is no longer available." };
+      return insertUser(accountData, "admin");
+    });
+    return createFirstAdmin.immediate(data);
   });
 
-  ipcMain.handle("auth:resume", (_event, userId) => {
+  ipcMain.handle("auth:login", (_event, { username, password }) => {
+    const identifier = String(username || "").trim();
+    const user = db.prepare("SELECT * FROM users WHERE (LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)) AND is_active = 1").get(identifier, identifier);
+    if (!user || !require("bcryptjs").compareSync(String(password || ""), user.password_hash)) {
+      return { success: false, error: "Invalid credentials" };
+    }
+    db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(user.id);
+    currentUserId = user.id;
+    currentUserRole = normalizeRole(user.role);
+    currentSessionToken = uuidv4();
+    return {
+      success: true,
+      user: toSafeUser(user),
+      sessionToken: currentSessionToken,
+    };
+  });
+
+  ipcMain.handle("auth:resume", (_event, { userId, token } = {}) => {
+    if (
+      !currentUserId ||
+      !currentSessionToken ||
+      String(userId) !== String(currentUserId) ||
+      token !== currentSessionToken
+    ) {
+      return { success: false };
+    }
     const user = db
       .prepare("SELECT * FROM users WHERE id = ? AND is_active = 1")
       .get(userId);
     if (!user) {
+      currentUserId = null;
+      currentSessionToken = null;
       currentUserRole = "teacher";
       return { success: false };
     }
-
     currentUserRole = normalizeRole(user.role);
-    const { password_hash, ...safeUser } = user;
-    return { success: true, user: safeUser };
+    return { success: true, user: toSafeUser(user) };
   });
 
   ipcMain.handle("auth:logout", () => {
+    currentUserId = null;
+    currentSessionToken = null;
     currentUserRole = "teacher";
     return true;
   });
 
-  ipcMain.handle("auth:register", (event, data) => {
-    const bcrypt = require("bcryptjs");
-    const existing = db
-      .prepare("SELECT id FROM users WHERE username = ?")
-      .get(data.username);
-    if (existing) return { success: false, error: "Username already exists" };
+  ipcMain.handle("users:list", () => {
+    const denied = adminDenied();
+    if (denied) return denied;
+    const users = db.prepare("SELECT id, username, full_name, email, role, is_active, last_login, created_at, updated_at FROM users ORDER BY full_name COLLATE NOCASE, username COLLATE NOCASE").all().map(toSafeUser);
+    return { success: true, users };
+  });
 
-    const id = uuidv4();
-    const hash = bcrypt.hashSync(data.password, 12);
+  ipcMain.handle("users:create", (_event, data) => {
+    const denied = adminDenied();
+    return denied || insertUser(data, normalizeRole(data?.role));
+  });
 
-    db.prepare(
-      `
-      INSERT INTO users (id, username, password_hash, full_name, email, role)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `,
-    ).run(
-      id,
-      data.username,
-      hash,
-      data.fullName,
-      data.email,
-      "teacher",
-    );
+  ipcMain.handle("users:updateRole", (_event, { userId, role }) => {
+    const denied = adminDenied();
+    if (denied) return denied;
+    if (String(userId) === String(currentUserId)) return { success: false, error: "You cannot change your own role." };
+    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+    if (!user) return { success: false, error: "User not found." };
+    const nextRole = normalizeRole(role);
+    if (normalizeRole(user.role) === "admin" && nextRole !== "admin" && Number(user.is_active) === 1 && getActiveAdminCount() <= 1) {
+      return { success: false, error: "At least one active Admin is required." };
+    }
+    db.prepare("UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?").run(nextRole, userId);
+    return { success: true, user: toSafeUser(db.prepare("SELECT * FROM users WHERE id = ?").get(userId)) };
+  });
 
+  ipcMain.handle("users:setActive", (_event, { userId, isActive }) => {
+    const denied = adminDenied();
+    if (denied) return denied;
+    if (String(userId) === String(currentUserId) && !isActive) return { success: false, error: "You cannot deactivate your own account." };
+    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+    if (!user) return { success: false, error: "User not found." };
+    if (normalizeRole(user.role) === "admin" && Number(user.is_active) === 1 && !isActive && getActiveAdminCount() <= 1) {
+      return { success: false, error: "At least one active Admin is required." };
+    }
+    db.prepare("UPDATE users SET is_active = ?, updated_at = datetime('now') WHERE id = ?").run(isActive ? 1 : 0, userId);
+    return { success: true, user: toSafeUser(db.prepare("SELECT * FROM users WHERE id = ?").get(userId)) };
+  });
+
+  ipcMain.handle("users:resetPassword", (_event, { userId, password }) => {
+    const denied = adminDenied();
+    if (denied) return denied;
+    if (String(password || "").length < 8) return { success: false, error: "Password must be at least 8 characters." };
+    if (!db.prepare("SELECT id FROM users WHERE id = ?").get(userId)) return { success: false, error: "User not found." };
+    db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?").run(require("bcryptjs").hashSync(String(password), 12), userId);
     return { success: true };
   });
 }

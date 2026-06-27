@@ -20,6 +20,7 @@ import Stat from "../components/common/Stat";
 import Button from "../components/common/Button";
 import { formatDate, daysUntil, startOfDay } from "../utils/dateUtils";
 import { getStudentName, getIepStudentName } from "../utils/studentUtils";
+import { getIepDates } from "../utils/iepStudentUtils";
 
 const DISMISSED_STORAGE_KEY = "reminders:dismissed";
 
@@ -27,22 +28,22 @@ const reminderConfig = {
   review: {
     label: "Reviews",
     icon: CalendarDays,
-    className: "border border-warning/30 bg-warning/10 text-base-content",
+    className: "text-warning",
   },
   progress: {
     label: "Progress",
     icon: Target,
-    className: "border-info/30 bg-info/10 text-base-content",
+    className: "text-info",
   },
   birthday: {
     label: "Birthdays",
     icon: Gift,
-    className: "border-gray-300 bg-success/10 text-base-content",
+    className: "text-success",
   },
   draft: {
     label: "Drafts",
     icon: FileText,
-    className: "border-primary/30 bg-primary/10 text-base-content",
+    className: "text-primary",
   },
 };
 
@@ -231,10 +232,11 @@ const Reminders = () => {
           <div className="flex flex-wrap gap-2">
             {filters.map((filter) => (
               <button
+                type="button"
                 key={filter.value}
                 className={`btn btn-sm px-3 py-2${
                   activeFilter === filter.value
-                    ? "btn-active bg-gray-100"
+                    ? "btn-active bg-primary text-primary-content"
                     : "btn-outline"
                 }`}
                 onClick={() => setActiveFilter(filter.value)}
@@ -301,7 +303,7 @@ const buildReminders = (students, ieps, sessions) => {
     .filter((iep) => iep.status !== "archived")
     .forEach((iep) => {
       const name = getIepStudentName(iep) || iep.title;
-      const endDate = iep.data?.studentInfo?.iepEndDate;
+      const endDate = getIepDates(iep).endDate;
       const reviewDays = daysUntil(endDate);
 
       if (reviewDays !== null && reviewDays <= 60) {
@@ -381,7 +383,7 @@ const ReminderRow = ({ reminder, onDismiss }) => {
         className="flex min-w-0 flex-1 items-center gap-3 rounded-md"
       >
         <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md border ${config.className}`}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center ${config.className}`}
         >
           <Icon className="h-5 w-5" />
         </div>
@@ -404,6 +406,7 @@ const ReminderRow = ({ reminder, onDismiss }) => {
             : `${reminder.days} days`}
         </span>
         <button
+          type="button"
           className="btn btn-ghost btn-sm btn-square"
           title="Dismiss reminder"
           onClick={() => onDismiss(reminder.id)}

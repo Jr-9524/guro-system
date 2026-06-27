@@ -4,7 +4,7 @@ import Button from "../components/common/Button";
 
 const NotFound = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="flex min-h-screen items-center justify-center bg-base-200 text-base-content">
       <div className="text-center">
         <h1 className="text-6xl font-bold text-base-content mb-4">404</h1>
         <h2 className="text-2xl font-bold text-base-content mb-2">

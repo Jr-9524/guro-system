@@ -1,13 +1,19 @@
-export const goalAreas = [
-  "Reading",
-  "Writing",
-  "Mathematics",
-  "Communication",
-  "Behavior",
-  "Social Skills",
-  "Motor Skills",
-  "Functional / Self-care",
-];
+import {
+  areasOfNeed,
+  commonSupports as sharedSupports,
+  goalStatuses as sharedGoalStatuses,
+  measurementMethods as sharedMeasurementMethods,
+  objectiveStatuses as sharedObjectiveStatuses,
+  progressFrequencies,
+  reportingSchedules as sharedReportingSchedules,
+} from "../constants/formOptions.js";
+
+const toStringArray = (value) => {
+  if (Array.isArray(value)) return value.filter(Boolean).map(String);
+  return value ? [String(value)] : [];
+};
+
+export const goalAreas = [...areasOfNeed];
 
 export const goalTemplates = {
   Reading: {
@@ -15,7 +21,7 @@ export const goalTemplates = {
     condition: "Given a grade-appropriate reading passage and visual prompts",
     behavior: "answer comprehension questions",
     criteria: "with 80% accuracy in 4 out of 5 trials",
-    measurementMethod: "Quiz/worksheet score",
+    measurementMethod: "Quiz / worksheet score",
   },
   Writing: {
     timeframe: "By the end of the school year",
@@ -29,7 +35,7 @@ export const goalTemplates = {
     condition: "Given visual supports and grade-appropriate problems",
     behavior: "solve mathematics problems using an appropriate strategy",
     criteria: "with 80% accuracy across 3 consecutive assessments",
-    measurementMethod: "Quiz/worksheet score",
+    measurementMethod: "Quiz / worksheet score",
   },
   Behavior: {
     timeframe: "By the end of the school year",
@@ -47,41 +53,12 @@ export const goalTemplates = {
   },
 };
 
-export const measurementMethods = [
-  "Teacher observation",
-  "Checklist",
-  "Quiz/worksheet score",
-  "Rubric",
-  "Behavior frequency count",
-  "Performance task",
-];
-
-export const measurementFrequencies = [
-  "Weekly",
-  "Every 2 weeks",
-  "Monthly",
-  "Quarterly",
-];
-
-export const reportingSchedules = [
-  "Monthly",
-  "Quarterly",
-  "Every grading period",
-];
-
-export const commonSupports = [
-  "Visual prompts",
-  "Repeated instructions",
-  "Small-group instruction",
-  "Extra response time",
-  "Guided practice",
-  "Simplified text",
-  "Positive reinforcement",
-  "Assistive technology",
-];
-
-export const objectiveStatuses = ["Not Started", "In Progress", "Completed"];
-export const goalStatuses = ["Not Started", "In Progress", "Needs Attention", "Completed"];
+export const measurementMethods = [...sharedMeasurementMethods];
+export const measurementFrequencies = [...progressFrequencies];
+export const reportingSchedules = [...sharedReportingSchedules];
+export const commonSupports = [...sharedSupports];
+export const objectiveStatuses = [...sharedObjectiveStatuses];
+export const goalStatuses = [...sharedGoalStatuses];
 
 export const buildGoalText = (annualGoal = {}) => {
   const { timeframe, condition, behavior, criteria } = annualGoal;
@@ -141,7 +118,7 @@ export const normalizeGoal = (goal = {}, index = 0) => {
     measurementMethod,
     measurementFrequency,
     progressReportingSchedule: goal.progressReportingSchedule || "",
-    supports: Array.isArray(goal.supports) ? goal.supports : [],
+    supports: toStringArray(goal.supports),
     status: goal.status || "Not Started",
     progressPercentage: Number(goal.progressPercentage ?? goal.progress ?? 0),
     // Legacy aliases keep existing reports, search, and older code working.
@@ -225,7 +202,7 @@ export const normalizeGoalTemplate = (template = {}, index = 0) => ({
     template.measurementMethod || template.measurement || "",
   frequency: template.frequency || "Weekly",
   reportingSchedule: template.reportingSchedule || "Quarterly",
-  supports: Array.isArray(template.supports) ? template.supports : [],
+  supports: toStringArray(template.supports),
   tags: Array.isArray(template.tags) ? template.tags : [],
   isCustom: Boolean(template.isCustom ?? template.source === "custom"),
 });

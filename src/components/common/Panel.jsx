@@ -8,9 +8,11 @@ const Panel = ({
   children,
   className = "",
 }) => (
-  <section className={`${guroCard.base} ${guroCard.padding} ${className}`}>
+  <section
+    className={`${guroCard.base} ${guroCard.padding} border border-base-300 ${className}`}
+  >
     {(title || action) && (
-      <div className={guroPanel.header}>
+      <div className={`${guroPanel.header} border-b border-base-300 pb-3`}>
         {title && <h2 className={guroPanel.title}>{title}</h2>}
 
         {action && (

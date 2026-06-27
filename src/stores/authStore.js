@@ -9,11 +9,13 @@ const toClientUser = (user) => ({
   id: user.id,
   username: user.username,
   fullName: user.full_name ?? user.fullName,
+  email: user.email || "",
   role: user.role || "teacher",
+  isActive: Boolean(user.is_active ?? user.isActive ?? true),
 });
 
-const persistSession = (user) => {
-  const token = HashingService.generateToken();
+const persistSession = (user, sessionToken) => {
+  const token = sessionToken || HashingService.generateToken();
   const clientUser = toClientUser(user);
 
   localStorage.setItem("auth_token", token);
@@ -52,7 +54,7 @@ const useAuthStore = create((set) => ({
           throw new Error(result.error || "Invalid username or password");
         }
 
-        const session = persistSession(result.user);
+        const session = persistSession(result.user, result.sessionToken);
         set({
           user: session.user,
           token: session.token,
@@ -66,7 +68,13 @@ const useAuthStore = create((set) => ({
 
       // For development: Check against stored users in localStorage
       const users = JSON.parse(localStorage.getItem("users") || "[]");
-      const user = users.find((u) => u.username === username);
+      const identifier = String(username).trim().toLowerCase();
+      const user = users.find(
+        (item) =>
+          item.isActive !== false &&
+          (item.username?.toLowerCase() === identifier ||
+            item.email?.toLowerCase() === identifier),
+      );
 
       if (!user) {
         rateLimiter.addAttempt(username);
@@ -93,55 +101,6 @@ const useAuthStore = create((set) => ({
         isLoading: false,
       });
 
-      return true;
-    } catch (error) {
-      set({
-        error: error.message,
-        isLoading: false,
-      });
-      return false;
-    }
-  },
-
-  register: async (userData) => {
-    set({ isLoading: true, error: null });
-
-    try {
-      if (window.electronAPI?.auth?.register) {
-        const result = await window.electronAPI.auth.register(userData);
-        if (!result.success) {
-          throw new Error(result.error || "Registration failed");
-        }
-
-        set({ isLoading: false });
-        return true;
-      }
-
-      const users = JSON.parse(localStorage.getItem("users") || "[]");
-
-      // Check if username exists
-      if (users.find((u) => u.username === userData.username)) {
-        throw new Error("Username already exists");
-      }
-
-      // Hash password
-      const passwordHash = await HashingService.hashPassword(userData.password);
-
-      // Create new user
-      const newUser = {
-        id: HashingService.generateToken(8),
-        username: userData.username,
-        passwordHash,
-        fullName: userData.fullName,
-        email: userData.email,
-        role: "teacher",
-        createdAt: new Date().toISOString(),
-      };
-
-      users.push(newUser);
-      localStorage.setItem("users", JSON.stringify(users));
-
-      set({ isLoading: false });
       return true;
     } catch (error) {
       set({
@@ -187,7 +146,10 @@ const useAuthStore = create((set) => ({
     }
 
     try {
-      const result = await window.electronAPI.auth.resume(clientUser.id);
+      const result = await window.electronAPI.auth.resume({
+        userId: clientUser.id,
+        token,
+      });
       if (!result?.success) throw new Error("Session is no longer valid");
 
       const resumedUser = toClientUser(result.user);

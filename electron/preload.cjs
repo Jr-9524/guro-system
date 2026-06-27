@@ -37,6 +37,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("ai:summarizeProgress", payload),
   },
 
+  aiSettings: {
+    get: () => ipcRenderer.invoke("ai-settings:get"),
+    save: (settings) => ipcRenderer.invoke("ai-settings:save", settings),
+    remove: () => ipcRenderer.invoke("ai-settings:remove"),
+    test: (settings) => ipcRenderer.invoke("ai-settings:test", settings),
+    isConfigured: () => ipcRenderer.invoke("ai-settings:is-configured"),
+  },
+
   // Full SQLite database backup and restore
   backup: {
     createBackup: () => ipcRenderer.invoke("backup:create"),
@@ -61,9 +69,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Auth
   auth: {
+    getUserCount: () => ipcRenderer.invoke("auth:getUserCount"),
+    createFirstAdmin: (data) => ipcRenderer.invoke("auth:createFirstAdmin", data),
     login: (credentials) => ipcRenderer.invoke("auth:login", credentials),
-    resume: (userId) => ipcRenderer.invoke("auth:resume", userId),
+    resume: (session) => ipcRenderer.invoke("auth:resume", session),
     logout: () => ipcRenderer.invoke("auth:logout"),
-    register: (data) => ipcRenderer.invoke("auth:register", data),
+  },
+
+  users: {
+    list: () => ipcRenderer.invoke("users:list"),
+    create: (data) => ipcRenderer.invoke("users:create", data),
+    updateRole: (userId, role) => ipcRenderer.invoke("users:updateRole", { userId, role }),
+    setActive: (userId, isActive) => ipcRenderer.invoke("users:setActive", { userId, isActive }),
+    resetPassword: (userId, password) => ipcRenderer.invoke("users:resetPassword", { userId, password }),
   },
 });

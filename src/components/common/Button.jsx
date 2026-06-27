@@ -1,4 +1,4 @@
-import { guroButtonSizes, guroButtonVariants } from "../../styles/guroStyles";
+import { guroBase, guroButtonSizes, guroButtonVariants } from "../../styles/guroStyles";
 
 const Button = ({
   children,
@@ -12,8 +12,7 @@ const Button = ({
   type = "button",
   ...props
 }) => {
-  const baseClass =
-    "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60";
+  const baseClass = `${guroBase.button} ${guroBase.disabled}`;
 
   return (
     <button

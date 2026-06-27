@@ -24,6 +24,8 @@ const Reminders = React.lazy(() => import("./pages/Reminders"));
 const SearchPage = React.lazy(() => import("./pages/SearchPage"));
 const ActivityLog = React.lazy(() => import("./pages/ActivityLog"));
 const AccessDenied = React.lazy(() => import("./pages/AccessDenied"));
+const UserManagement = React.lazy(() => import("./pages/UserManagement"));
+const AISettings = React.lazy(() => import("./pages/settings/AISettings"));
 
 const ProtectedRoute = ({ isAuthenticated, user, permission, children }) => {
   if (!isAuthenticated) {
@@ -158,6 +160,30 @@ function App() {
             />
             <Route path="goals" element={<GoalBank />} />
             <Route path="settings" element={<Settings />} />
+            <Route
+              path="settings/users"
+              element={
+                <ProtectedRoute
+                  isAuthenticated={isAuthenticated}
+                  user={user}
+                  permission={PERMISSIONS.USERS_MANAGE}
+                >
+                  <UserManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="settings/ai"
+              element={
+                <ProtectedRoute
+                  isAuthenticated={isAuthenticated}
+                  user={user}
+                  permission={PERMISSIONS.AI_SETTINGS_MANAGE}
+                >
+                  <AISettings />
+                </ProtectedRoute>
+              }
+            />
           </Route>
 
           {/* 404 */}
@@ -171,8 +197,9 @@ function App() {
           duration: 4000,
           style: {
             borderRadius: "10px",
-            background: "#333",
-            color: "#fff",
+            background: "var(--color-base-100)",
+            color: "var(--color-base-content)",
+            border: "1px solid var(--color-base-300)",
           },
         }}
       />

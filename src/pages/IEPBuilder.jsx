@@ -8,6 +8,7 @@ import {
   Plus,
   Printer,
   Pencil,
+  RefreshCw,
   Save,
   Search,
   Sparkles,
@@ -15,6 +16,9 @@ import {
   X,
 } from "lucide-react";
 import Button from "../components/common/Button";
+import ActionMenu from "../components/common/ActionMenu";
+import ButtonLink from "../components/common/ButtonLink";
+import SectionTabs from "../components/common/SectionTabs";
 import SelectInput from "../components/forms/SelectInput";
 import Input from "../components/common/Input";
 import TextAreaInput from "../components/forms/TextAreaInput";
@@ -24,7 +28,7 @@ import {
   printIepDocument,
 } from "../services/iepExportService";
 import iepService from "../services/iepService";
-import selectStyles from "../utils/selectStyles";
+import aiSettingsService from "../services/aiSettingsService";
 import workspaceStoreService from "../services/workspaceStoreService";
 import useStudentStore from "../stores/studentStore";
 import CreatableSelectInput from "../components/forms/CreatableSelectInput";
@@ -51,6 +55,21 @@ import {
   objectiveStatuses,
   reportingSchedules,
 } from "../utils/goalUtils";
+import {
+  buildStudentSnapshot,
+  getStudentSummaryForIep,
+  normalizeIepStudentInfo,
+} from "../utils/iepStudentUtils";
+import {
+  academicPerformanceLevels,
+  assessmentMethods,
+  commonAccommodations,
+  commonModifications,
+  progressFrequencies,
+  serviceLocations,
+  serviceProviders,
+  serviceTypes,
+} from "../constants/formOptions";
 
 const sections = [
   { title: "Choose Student", sub: "Learner profile", key: "studentInfo" },
@@ -59,38 +78,6 @@ const sections = [
   { title: "Accommodations", sub: "Learning supports", key: "accommodations" },
   { title: "Services", sub: "Service plan", key: "services" },
   { title: "Review & Export", sub: "Progress plan", key: "progressPlan" },
-];
-
-const disabilityCategories = [
-  "Visual Impairment",
-  "Hearing Impairment",
-  "Learning Disability",
-  "Intellectual Disability",
-  "Autism Spectrum Disorder",
-  "Emotional-Behavioral Disorder",
-  "Orthopedic/Physical Handicap",
-  "Speech/Language Disorder",
-  "Cerebral Palsy",
-  "Special Health Problem/Chronic Disease",
-  "Multiple Disabilities",
-];
-
-const severityLevels = ["Mild", "Moderate", "Severe", "Profound"];
-const communicationModes = ["Verbal", "Non-verbal", "FSL", "AAC", "Braille"];
-const gradeLevels = [
-  "K",
-  "1",
-  "2",
-  "3",
-  "4",
-  "5",
-  "6",
-  "7",
-  "8",
-  "9",
-  "10",
-  "11",
-  "12",
 ];
 
 const serviceFrequencyOptions = [
@@ -103,21 +90,15 @@ const serviceFrequencyOptions = [
 
 const serviceDurationOptions = ["30 minutes", "45 minutes", "60 minutes"];
 
-const serviceSettingOptions = [
-  "Pull-out",
-  "Push-in",
-  "Inclusive",
-  "Home-based",
-];
-
-const serviceProviderOptions = [
-  "SPED Teacher",
-  "Speech Therapist",
-  "Occupational Therapist",
-  "General Education Teacher",
-];
-
 const defaultIepData = {
+  iepDetails: {
+    title: "",
+    startDate: "",
+    endDate: "",
+    reviewDate: "",
+    preparedBy: "",
+  },
+  studentSnapshot: null,
   studentInfo: {
     firstName: "",
     lastName: "",
@@ -142,17 +123,18 @@ const defaultIepData = {
   },
   goals: [createGoal()],
   accommodations: {
-    presentation: ["Read-aloud for tests", "Visual aids and diagrams"],
+    presentation: ["Read-aloud instructions", "Visual aids"],
     timeEnvironment: ["Extended time", "Preferential seating"],
-    response: ["Oral responses allowed"],
+    response: ["Simplified instructions"],
   },
+  modifications: [],
   services: [
     {
       id: 1,
-      name: "Special Education Support",
+      name: "SPED support",
       frequency: "3x per week",
       duration: "45 minutes",
-      setting: "Pull-out",
+      setting: "Pull-out setting",
       provider: "SPED Teacher",
     },
   ],
@@ -167,41 +149,9 @@ const defaultIepData = {
 
 const cloneDefaultIepData = () => structuredClone(defaultIepData);
 
-const getAgeFromBirthDate = (birthDate) => {
-  if (!birthDate) return "";
-
-  const birth = new Date(birthDate);
-  if (Number.isNaN(birth.getTime())) return "";
-
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const hasBirthdayPassed =
-    today.getMonth() > birth.getMonth() ||
-    (today.getMonth() === birth.getMonth() &&
-      today.getDate() >= birth.getDate());
-
-  if (!hasBirthdayPassed) age -= 1;
-  return age >= 0 ? String(age) : "";
-};
-
-const getStudentInfoAutofill = (studentRecord) => ({
-  firstName: studentRecord.firstName || "",
-  lastName: studentRecord.lastName || "",
-  gradeLevel: studentRecord.gradeLevel || "",
-  age: getAgeFromBirthDate(studentRecord.birthDate),
-  school: studentRecord.school || "",
-  disabilityCategory: studentRecord.primaryDisabilityCategory || "",
-  disabilitySeverity: studentRecord.severityLevel || "",
-  communicationMode: studentRecord.communicationMode || "",
-});
-
-const applyStudentInfo = (currentInfo, studentRecord) => {
-  const autofill = getStudentInfoAutofill(studentRecord);
-
-  return {
-    ...currentInfo,
-    ...autofill,
-  };
+const toStringArray = (value) => {
+  if (Array.isArray(value)) return value.filter(Boolean).map(String);
+  return value ? [String(value)] : [];
 };
 
 const IEPBuilder = () => {
@@ -212,6 +162,10 @@ const IEPBuilder = () => {
 
   const [activeSection, setActiveSection] = useState(0);
   const [student, setStudent] = useState(null);
+  const [isChangingStudent, setIsChangingStudent] = useState(false);
+  const [linkedStudentId, setLinkedStudentId] = useState(
+    searchParams.get("studentId") || "",
+  );
   const [completedSections, setCompletedSections] = useState([]);
   const [currentIepId, setCurrentIepId] = useState(id || null);
   const [iepData, setIepData] = useState(cloneDefaultIepData);
@@ -288,9 +242,17 @@ const IEPBuilder = () => {
       if (!studentRecord) return;
 
       setStudent(studentRecord);
+      setIsChangingStudent(false);
       setIepData((current) => ({
-        ...current,
-        studentInfo: applyStudentInfo(current.studentInfo, studentRecord),
+        ...normalizeIepStudentInfo(current, studentRecord),
+        iepDetails: {
+          ...current.iepDetails,
+          title:
+            current.iepDetails?.title ||
+            `IEP - ${[studentRecord.firstName, studentRecord.lastName]
+              .filter(Boolean)
+              .join(" ")}`,
+        },
       }));
     };
 
@@ -299,7 +261,10 @@ const IEPBuilder = () => {
 
       if (!id) {
         const studentId = searchParams.get("studentId");
-        applyStudent(students.find((item) => item.id === studentId));
+        setLinkedStudentId(studentId || "");
+        applyStudent(
+          students.find((item) => String(item.id) === String(studentId)),
+        );
         setCurrentIepId(null);
         setIsLoading(false);
         return;
@@ -315,19 +280,47 @@ const IEPBuilder = () => {
           return;
         }
 
+        const normalizedData = normalizeIepStudentInfo(existing.data);
+        setLinkedStudentId(existing.studentId || "");
         setCurrentIepId(existing.id);
         setIepData({
           ...cloneDefaultIepData(),
-          ...existing.data,
+          ...normalizedData,
+          iepDetails: {
+            ...cloneDefaultIepData().iepDetails,
+            ...normalizedData.iepDetails,
+            title: normalizedData.iepDetails?.title || existing.title || "",
+          },
           plaaFP: {
             ...cloneDefaultIepData().plaaFP,
-            ...existing.data?.plaaFP,
+            ...normalizedData.plaaFP,
           },
-          goals: (existing.data?.goals || []).map(normalizeGoal),
+          goals: (normalizedData.goals || []).map(normalizeGoal),
+          accommodations: {
+            ...cloneDefaultIepData().accommodations,
+            ...(normalizedData.accommodations || {}),
+            presentation: toStringArray(
+              normalizedData.accommodations?.presentation ??
+                cloneDefaultIepData().accommodations.presentation,
+            ),
+            timeEnvironment: toStringArray(
+              normalizedData.accommodations?.timeEnvironment ??
+                cloneDefaultIepData().accommodations.timeEnvironment,
+            ),
+            response: toStringArray(
+              normalizedData.accommodations?.response ??
+                cloneDefaultIepData().accommodations.response,
+            ),
+          },
+          modifications: toStringArray(normalizedData.modifications),
         });
         setCompletedSections(existing.completedSections || []);
         setActiveSection(existing.activeSection || 0);
-        applyStudent(students.find((item) => item.id === existing.studentId));
+        applyStudent(
+          students.find(
+            (item) => String(item.id) === String(existing.studentId),
+          ),
+        );
       } catch (error) {
         if (isCurrent) toast.error(error.message || "Failed to load IEP");
       } finally {
@@ -342,13 +335,11 @@ const IEPBuilder = () => {
     };
   }, [id, navigate, searchParams, students]);
 
-  const studentName = useMemo(
-    () =>
-      [iepData.studentInfo.firstName, iepData.studentInfo.lastName]
-        .filter(Boolean)
-        .join(" "),
-    [iepData.studentInfo.firstName, iepData.studentInfo.lastName],
+  const studentSummary = useMemo(
+    () => getStudentSummaryForIep(iepData, student),
+    [iepData, student],
   );
+  const studentName = studentSummary.fullName || "";
 
   const goalBankTemplates = useMemo(
     () => [...seededGoals, ...customGoalTemplates].map(normalizeGoalTemplate),
@@ -376,21 +367,15 @@ const IEPBuilder = () => {
       .slice(0, 8);
   }, [goalBankQuery, goalBankTemplates]);
 
-  const markSectionDone = (index) => {
-    setCompletedSections((current) =>
-      current.includes(index) ? current : [...current, index],
-    );
-  };
-
   const getCompletedWith = (index) =>
     completedSections.includes(index)
       ? completedSections
       : [...completedSections, index];
 
-  const updateStudentInfo = (field, value) => {
+  const updateIepDetails = (field, value) => {
     setIepData((current) => ({
       ...current,
-      studentInfo: { ...current.studentInfo, [field]: value },
+      iepDetails: { ...current.iepDetails, [field]: value },
     }));
   };
 
@@ -466,7 +451,6 @@ const IEPBuilder = () => {
     }));
   };
 
-
   const addGoal = () => {
     const goal = createGoal();
     setIepData((current) => ({
@@ -513,11 +497,11 @@ const IEPBuilder = () => {
         ...current.services,
         {
           id: Date.now(),
-          name: "New Service",
+          name: "SPED support",
           frequency: "1x per week",
           duration: "30 minutes",
-          setting: "Pull-out",
-          provider: "Specialist",
+          setting: "Pull-out setting",
+          provider: "SPED Teacher",
         },
       ],
     }));
@@ -533,48 +517,68 @@ const IEPBuilder = () => {
     }));
   };
 
-  const toggleAccommodation = (group, item) => {
-    setIepData((current) => {
-      const selected = current.accommodations[group];
-      return {
-        ...current,
-        accommodations: {
-          ...current.accommodations,
-          [group]: selected.includes(item)
-            ? selected.filter((selectedItem) => selectedItem !== item)
-            : [...selected, item],
-        },
-      };
-    });
-  };
-
-  const handleStudentSelect = (studentId) => {
-    const selected = students.find((item) => item.id === studentId);
-    setStudent(selected || null);
-
-    if (!selected) {
-      setIepData((current) => ({
-        ...current,
-        studentInfo: cloneDefaultIepData().studentInfo,
-      }));
-      return;
-    }
-
+  const updateAccommodation = (group, values) => {
     setIepData((current) => ({
       ...current,
-      studentInfo: applyStudentInfo(current.studentInfo, selected),
+      accommodations: {
+        ...current.accommodations,
+        [group]: toStringArray(values),
+      },
     }));
   };
 
+  const handleStudentSelect = (studentId) => {
+    const selected = students.find(
+      (item) => String(item.id) === String(studentId),
+    );
+    if (!selected) return;
+
+    if (
+      linkedStudentId &&
+      String(linkedStudentId) !== String(selected.id) &&
+      !window.confirm(
+        "Changing the linked student will update the learner information for this IEP.",
+      )
+    ) {
+      return;
+    }
+
+    setStudent(selected);
+    setLinkedStudentId(selected.id);
+    setIsChangingStudent(false);
+    setIepData((current) => ({
+      ...normalizeIepStudentInfo(current, selected),
+      iepDetails: {
+        ...current.iepDetails,
+        title:
+          current.iepDetails?.title ||
+          `IEP - ${[selected.firstName, selected.lastName]
+            .filter(Boolean)
+            .join(" ")}`,
+      },
+    }));
+  };
+
+  const refreshStudentSnapshot = () => {
+    if (!student) return;
+    setIepData((current) => ({
+      ...current,
+      studentSnapshot: buildStudentSnapshot(student),
+    }));
+    toast.success("Learner summary refreshed");
+  };
+
   const validateBeforeSave = (validateGoals = false) => {
-    if (!student?.id && !searchParams.get("studentId")) {
+    if (!linkedStudentId) {
       toast.error("Choose a linked student before saving");
       setActiveSection(0);
       return false;
     }
 
-    if (!iepData.studentInfo.firstName || !iepData.studentInfo.lastName) {
-      toast.error("Student first and last name are required");
+    if (!studentName) {
+      toast.error(
+        "The linked student needs a name before this IEP can be saved",
+      );
       setActiveSection(0);
       return false;
     }
@@ -603,9 +607,9 @@ const IEPBuilder = () => {
     try {
       const saved = await iepService.save({
         id: currentIepId,
-        studentId: student?.id || searchParams.get("studentId"),
-        title: `IEP - ${studentName || "Untitled Student"}`,
-        data: iepData,
+        studentId: linkedStudentId,
+        title: iepData.iepDetails.title || `IEP - ${studentName}`,
+        data: normalizeIepStudentInfo(iepData, student),
         completedSections: nextCompletedSections,
         activeSection,
         status:
@@ -638,14 +642,20 @@ const IEPBuilder = () => {
       toast.error("AI drafting is available in the GURO desktop app");
       return;
     }
+    if (!(await aiSettingsService.isConfigured())) {
+      toast.error(
+        "AI is not configured. Please ask an administrator to set it up in Settings.",
+      );
+      return;
+    }
 
     setIsGeneratingPlaafp(true);
     try {
       const draft = await window.electronAPI.ai.generatePlaafp({
         studentName,
-        age: iepData.studentInfo.age,
-        gradeLevel: iepData.studentInfo.gradeLevel,
-        disabilityCategory: iepData.studentInfo.disabilityCategory,
+        age: studentSummary.age,
+        gradeLevel: studentSummary.gradeLevel,
+        disabilityCategory: studentSummary.disabilityCategory,
         learningNeeds: iepData.plaaFP.challenges,
         assessmentResults: iepData.plaaFP.assessmentResults,
         teacherObservations: iepData.plaaFP.teacherObservations,
@@ -683,6 +693,12 @@ const IEPBuilder = () => {
       toast.error("AI goal suggestions are available in the GURO desktop app");
       return;
     }
+    if (!(await aiSettingsService.isConfigured())) {
+      toast.error(
+        "AI is not configured. Please ask an administrator to set it up in Settings.",
+      );
+      return;
+    }
 
     const selectedGoal = iepData.goals.find(
       (goal) => goal.id === expandedGoalId,
@@ -692,9 +708,9 @@ const IEPBuilder = () => {
     try {
       const result = await window.electronAPI.ai.suggestGoals({
         studentName,
-        age: iepData.studentInfo.age,
-        gradeLevel: iepData.studentInfo.gradeLevel,
-        disabilityCategory: iepData.studentInfo.disabilityCategory,
+        age: studentSummary.age,
+        gradeLevel: studentSummary.gradeLevel,
+        disabilityCategory: studentSummary.disabilityCategory,
         learningNeeds: iepData.plaaFP.challenges,
         assessmentResults: iepData.plaaFP.assessmentResults,
         teacherObservations: iepData.plaaFP.teacherObservations,
@@ -749,8 +765,7 @@ const IEPBuilder = () => {
       ),
       measurementMethod: suggestion.measurementMethod || "",
       measurementFrequency: suggestion.measurementFrequency || "",
-      progressReportingSchedule:
-        suggestion.progressReportingSchedule || "",
+      progressReportingSchedule: suggestion.progressReportingSchedule || "",
       supports: suggestion.supports || [],
     });
 
@@ -765,7 +780,8 @@ const IEPBuilder = () => {
     toast.success("Suggested goal added for teacher review");
   };
 
-  const getExportTitle = () => `IEP - ${studentName || "Untitled Student"}`;
+  const getExportTitle = () =>
+    iepData.iepDetails.title || `IEP - ${studentName || "Untitled Student"}`;
 
   const handlePrintExport = () => {
     const opened = printIepDocument({
@@ -798,101 +814,79 @@ const IEPBuilder = () => {
   }
 
   return (
-    <div className="flex h-[calc(100vh-3rem)] -mx-6 -my-6 lg:-mx-8">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-base-300 bg-base-100">
-        <div className="border-b border-base-300 p-5">
-          <div className="mb-1 text-xs text-base-content/50">
-            Writing IEP for
-          </div>
-          <div className="truncate text-base font-semibold">
-            {studentName || "Select a student"}
-          </div>
-          <div className="truncate text-xs text-base-content/50">
-            {iepData.studentInfo.gradeLevel
-              ? `Grade ${iepData.studentInfo.gradeLevel}`
-              : "No grade set"}
-            {iepData.studentInfo.disabilityCategory
-              ? ` - ${iepData.studentInfo.disabilityCategory}`
-              : ""}
-          </div>
-        </div>
-
-        <div className="">
-          <div className="m-2 text-xs font-semibold uppercase tracking-wider text-base-content/40">
-            Sections
-          </div>
-          {sections.map((section, index) => {
-            const isDone = completedSections.includes(index);
-            const isActive = activeSection === index;
-
-            return (
-              <button
-                key={section.key}
-                type="button"
-                onClick={() => setActiveSection(index)}
-                className={`mb-0.5 flex w-full items-center gap-3 px-3 py-2.5 text-left transition-all ${
-                  isActive ? "bg-base-200 font-medium" : "hover:bg-base-200"
-                }`}
-              >
-                <span
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                    isDone
-                      ? "bg-success text-success-content"
-                      : isActive
-                        ? "bg-neutral text-base-100"
-                        : "bg-base-300 text-base-content/60"
-                  }`}
-                >
-                  {isDone ? <Check size={13} strokeWidth={3} /> : index + 1}
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm">
-                    {section.title}
-                  </span>
-                  <span className="block truncate text-xs text-base-content/40">
-                    {isDone ? "Complete" : section.sub}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-auto border-t border-base-300 p-5">
-          <div className="space-y-2">
-            <Button
-              className="w-full flex items-center justify-center gap-2"
-              onClick={() => handleSave({ completeCurrentSection: false })}
-              loading={isSaving}
-            >
-              <Save size={18} />
-              <span>Save Draft</span>
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="w-full flex items-center justify-center gap-2"
-              onClick={handlePrintExport}
-            >
-              <Printer size={18} />
-              <span>Print / PDF</span>
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="w-full flex items-center justify-center gap-2"
-              onClick={handleWordExport}
-            >
-              <Download size={18} />
-              <span>Export Word</span>
-            </Button>
-          </div>
-        </div>
-      </aside>
-
-      <main className="flex-1 overflow-y-auto bg-base-200 p-4 sm:p-6 xl:p-8 pb-24">
+    <div className="h-[calc(100vh-3rem)] -mx-6 -my-6 lg:-mx-8">
+      <main className="h-full overflow-y-auto bg-base-200 p-4 pb-24 sm:p-6 sm:pb-24 xl:p-8 xl:pb-24">
         <div className="mx-auto max-w-7xl space-y-6">
-          <div className="rounded-xl border border-base-300 bg-base-100 px-5 py-4 shadow-sm">
+          <div className="flex flex-col gap-4 rounded-xl border border-base-300 bg-base-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-base-content/45">
+                Writing IEP for
+              </div>
+              <div className="truncate text-lg font-semibold">
+                {studentName || "Select a student"}
+              </div>
+              <div className="truncate text-sm text-base-content/55">
+                {studentSummary.gradeLevel
+                  ? `Grade ${studentSummary.gradeLevel}`
+                  : "No grade set"}
+                {studentSummary.disabilityCategory
+                  ? ` - ${studentSummary.disabilityCategory}`
+                  : ""}
+              </div>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                className="flex items-center justify-center gap-2"
+                onClick={() => handleSave({ completeCurrentSection: false })}
+                loading={isSaving}
+              >
+                <Save size={18} />
+                <span>Save Draft</span>
+              </Button>
+              <ActionMenu
+                label="Export options"
+                items={[
+                  {
+                    id: "print",
+                    label: "Print / PDF",
+                    icon: Printer,
+                    onClick: handlePrintExport,
+                  },
+                  {
+                    id: "word",
+                    label: "Export Word",
+                    icon: Download,
+                    onClick: handleWordExport,
+                  },
+                ]}
+              />
+            </div>
+          </div>
+
+          <SectionTabs
+            label="IEP sections"
+            activeId={activeSection}
+            onChange={setActiveSection}
+            items={sections.map((section, index) => ({
+              id: index,
+              label: (
+                <span className="flex items-center gap-2">
+                  {completedSections.includes(index) && (
+                    <Check
+                      size={14}
+                      strokeWidth={3}
+                      className="text-success"
+                      aria-hidden="true"
+                    />
+                  )}
+                  {section.title}
+                </span>
+              ),
+            }))}
+          />
+
+          <div className="px-1 py-2">
             <p className="text-xs font-bold uppercase tracking-wider text-base-content">
               Step {activeSection + 1} of {sections.length}
             </p>
@@ -912,132 +906,196 @@ const IEPBuilder = () => {
           {activeSection === 0 && (
             <SectionWrapper
               title="Choose a Student"
-              description="Select a learner profile, then confirm the IEP dates before continuing."
+              description="Link a learner and set the IEP details."
             >
-              <SelectInput
-                label="Linked Student"
-                helperText="Select the student this IEP belongs to"
-                value={student?.id || ""}
-                onChange={handleStudentSelect}
-                placeholder="No student selected"
-                options={students.map((item) => ({
-                  value: item.id,
-                  label: `${item.firstName} ${item.lastName}`,
-                }))}
-              />
-              <div className="grid gap-4 md:grid-cols-2">
-                <Input
-                  label="First name (Read Only)"
-                  value={iepData.studentInfo.firstName}
-                  // onChange={(value) => updateStudentInfo("firstName", value)}
-                  readOnly
-                />
-                <Input
-                  label="Last name (Read Only)"
-                  value={iepData.studentInfo.lastName}
-                  // onChange={(value) => updateStudentInfo("lastName", value)}
-                  readOnly
-                />
-              </div>
+              {(!student || isChangingStudent) && (
+                <div className="space-y-3 rounded-xl bg-base-200 p-4">
+                  {student && (
+                    <p className="text-sm text-base-content/70">
+                      Changing the linked student will update the learner
+                      information for this IEP. Your IEP dates, PLAAFP, goals,
+                      and services will stay unchanged.
+                    </p>
+                  )}
+                  <SelectInput
+                    label="Linked Student"
+                    helperText="Select the student this IEP belongs to"
+                    value={linkedStudentId}
+                    onChange={handleStudentSelect}
+                    placeholder="No student selected"
+                    options={students.map((item) => ({
+                      value: item.id,
+                      label: `${item.firstName} ${item.lastName}`,
+                    }))}
+                  />
+                </div>
+              )}
 
-              <div className="grid gap-4 md:grid-cols-3">
-                <SelectInput
-                  label="Grade level (Read Only)"
-                  value={iepData.studentInfo.gradeLevel}
-                  // onChange={(value) => updateStudentInfo("gradeLevel", value)}
+              {studentName ? (
+                <section className="overflow-hidden rounded-xl border border-base-300 bg-base-100">
+                  <div className="flex flex-col gap-3 border-b border-base-300 bg-base-200/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-base-content/60">
+                        Learner Summary
+                      </p>
+                      <h3 className="mt-1 text-lg font-bold">{studentName}</h3>
+                      <p className="text-sm text-base-content/60">
+                        Profile information is read-only here. Edit it from the
+                        Student Profile page.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {linkedStudentId && (
+                        <ButtonLink
+                          to={`/students/${linkedStudentId}`}
+                          size="sm"
+                          variant="secondary"
+                        >
+                          View Student Profile
+                        </ButtonLink>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setIsChangingStudent(true)}
+                      >
+                        Change Student
+                      </Button>
+                      {student && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          icon={RefreshCw}
+                          onClick={refreshStudentSnapshot}
+                        >
+                          Refresh Summary
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <dl className="grid gap-px bg-base-300 sm:grid-cols-2 xl:grid-cols-2">
+                    <LearnerSummaryField
+                      label="Full name"
+                      value={studentSummary.fullName}
+                    />
+                    <LearnerSummaryField
+                      label="Grade level"
+                      value={studentSummary.gradeLevel}
+                    />
+                    <LearnerSummaryField
+                      label="Age"
+                      value={studentSummary.age}
+                    />
+                    <LearnerSummaryField
+                      label="Disability category"
+                      value={studentSummary.disabilityCategory}
+                    />
+                    <LearnerSummaryField
+                      label="Learning needs"
+                      value={studentSummary.learningNeeds}
+                    />
+                    <LearnerSummaryField
+                      label="Communication mode"
+                      value={studentSummary.communicationMode}
+                    />
+                    <LearnerSummaryField
+                      label="Support intensity"
+                      value={studentSummary.supportIntensity}
+                    />
+                    <LearnerSummaryField
+                      label="Developmental level"
+                      value={studentSummary.developmentalLevel}
+                    />
+                    <LearnerSummaryField
+                      label="Parent / guardian"
+                      value={studentSummary.guardianName}
+                    />
+                    <LearnerSummaryField
+                      label="Guardian contact"
+                      value={studentSummary.guardianContact}
+                    />
+                  </dl>
+                </section>
+              ) : (
+                <div className="rounded-xl border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
+                  Select a linked student to review their learner summary.
+                </div>
+              )}
 
-                  options={gradeLevels}
-                  placeholder="Select grade"
-                  disabled
-                />
+              <section className="space-y-4 rounded-xl bg-base-100 p-5">
+                <div>
+                  <h3 className="font-bold">IEP Details</h3>
+                  <p className="text-sm text-base-content/60">
+                    These fields belong to this IEP document and remain
+                    editable.
+                  </p>
+                </div>
                 <Input
-                  label="Age (Read Only)"
-                  value={iepData.studentInfo.age}
-                  readOnly
-                />
-                <Input
-                  label="School (Read Only)"
-                  value={iepData.studentInfo.school}
-                  readOnly
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <SelectInput
-                  label="Disability category (Read Only)"
-                  value={iepData.studentInfo.disabilityCategory}
-                  // onChange={(value) =>
-                  //   updateStudentInfo("disabilityCategory", value)
-                  // }
-                  options={disabilityCategories}
-                  placeholder="Select category"
-                  disabled
-                />
-                <SelectInput
-                  label="Disability severity (Read Only)"
-                  value={iepData.studentInfo.disabilitySeverity}
-                  // onChange={(value) =>
-                  //   updateStudentInfo("disabilitySeverity", value)
-                  // }
-                  options={severityLevels}
-                  placeholder="Select severity"
-                  disabled
-                />
-                <SelectInput
-                  label="Communication mode (Read Only)"
-                  value={iepData.studentInfo.communicationMode}
-                  // onChange={(value) =>
-                  //   updateStudentInfo("communicationMode", value)
-                  // }
-                  options={communicationModes}
-                  placeholder="Select mode"
-                  disabled
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <Input
-                  label="IEP start date"
-                  type="date"
-                  value={iepData.studentInfo.iepStartDate}
+                  label="IEP title"
+                  value={iepData.iepDetails.title}
                   onChange={(event) =>
-                    updateStudentInfo("iepStartDate", event.target.value)
+                    updateIepDetails("title", event.target.value)
                   }
                 />
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Input
+                    label="IEP start date"
+                    type="date"
+                    value={iepData.iepDetails.startDate}
+                    onChange={(event) =>
+                      updateIepDetails("startDate", event.target.value)
+                    }
+                  />
+                  <Input
+                    label="IEP end date"
+                    type="date"
+                    value={iepData.iepDetails.endDate}
+                    onChange={(event) =>
+                      updateIepDetails("endDate", event.target.value)
+                    }
+                  />
+                  <Input
+                    label="Review date"
+                    type="date"
+                    value={iepData.iepDetails.reviewDate}
+                    onChange={(event) =>
+                      updateIepDetails("reviewDate", event.target.value)
+                    }
+                  />
+                </div>
                 <Input
-                  label="IEP end date"
-                  type="date"
-                  value={iepData.studentInfo.iepEndDate}
+                  label="Prepared by / Teacher"
+                  value={iepData.iepDetails.preparedBy}
                   onChange={(event) =>
-                    updateStudentInfo("iepEndDate", event.target.value)
+                    updateIepDetails("preparedBy", event.target.value)
                   }
                 />
-              </div>
+              </section>
             </SectionWrapper>
           )}
 
           {activeSection === 1 && (
             <SectionWrapper
               title="Present Levels (PLAAFP)"
-              description="Describe what the student can currently do, what they struggle with, and what support they need."
+              description="Record current strengths, needs, and classroom impact."
               example="Example: Juan can recognize basic sight words but needs support reading short passages and answering comprehension questions."
             >
               <div className="grid gap-4 md:grid-cols-2">
-                <Input
+                <CreatableSelectInput
                   label="Reading level"
                   value={iepData.plaaFP.readingLevel}
-                  onChange={(event) =>
-                    updatePlaafp("readingLevel", event.target.value)
-                  }
-                  placeholder="e.g., Grade 1 level"
+                  onChange={(value) => updatePlaafp("readingLevel", value)}
+                  options={academicPerformanceLevels}
+                  placeholder="Select or type a reading level"
                 />
-                <Input
+                <CreatableSelectInput
                   label="Math level"
                   value={iepData.plaaFP.mathLevel}
-                  onChange={(event) =>
-                    updatePlaafp("mathLevel", event.target.value)
-                  }
-                  placeholder="e.g., At grade level"
+                  onChange={(value) => updatePlaafp("mathLevel", value)}
+                  options={academicPerformanceLevels}
+                  placeholder="Select or type a math level"
                 />
               </div>
 
@@ -1081,23 +1139,14 @@ const IEPBuilder = () => {
                     placeholder="Generated or manually written PLAAFP text."
                     rows={7}
                   />
-                  <div className="rounded-lg bg-base-200 p-3 text-xs text-base-content/70">
+                  <div className="text-xs text-base-content/70">
                     <p className="font-semibold">
-                      AI-generated draft. Please review and edit before saving.
-                    </p>
-                    <p className="mt-1">
-                      AI assists with drafting only. The teacher remains
-                      responsible for reviewing and approving the final IEP
-                      content.
-                    </p>
-                    <p className="mt-1">
-                      An internet connection is required. Only the PLAAFP
-                      context shown above is sent to the configured Groq
-                      service.
+                      Review AI drafts before saving.
                     </p>
                   </div>
                   <div className="flex justify-end">
                     <Button
+                      variant="secondary"
                       onClick={generatePlaafpDraft}
                       loading={isGeneratingPlaafp}
                       disabled={isGeneratingPlaafp || !student?.id}
@@ -1116,12 +1165,13 @@ const IEPBuilder = () => {
           {activeSection === 2 && (
             <SectionWrapper
               title="Annual Goals"
-              description="Write a measurable goal the student can work toward within the school year."
+              description="Write measurable annual goals."
               example="Tip: Include the target date, condition, observable skill, success criteria, and measurement method."
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <Button
+                    variant="secondary"
                     onClick={suggestGoalsWithAi}
                     loading={isSuggestingGoals}
                     disabled={isSuggestingGoals || !student?.id}
@@ -1132,8 +1182,7 @@ const IEPBuilder = () => {
                       : "Suggest Goals with AI"}
                   </Button>
                   <p className="mt-2 max-w-xl text-xs text-base-content/60">
-                    AI suggests editable goals only. The teacher remains
-                    responsible for reviewing and approving all IEP goals.
+                    Review AI drafts before saving.
                   </p>
                 </div>
                 <Button
@@ -1188,7 +1237,6 @@ const IEPBuilder = () => {
                       onRemoveObjective={(objectiveId) =>
                         removeObjective(goal.id, objectiveId)
                       }
-
                       onDone={() => {
                         const warning = getGoalWarnings(goal)[0];
                         setExpandedGoalId(null);
@@ -1226,50 +1274,94 @@ const IEPBuilder = () => {
           {activeSection === 3 && (
             <SectionWrapper
               title="Accommodations & Modifications"
-              description="Select or describe supports that help the student access lessons and activities."
+              description="Choose accommodations and modifications."
             >
-              <AccommodationGroup
-                title="Presentation accommodations"
-                items={[
-                  "Read-aloud for tests",
-                  "Larger print materials",
-                  "Visual aids and diagrams",
-                  "Audio version of texts",
-                ]}
-                selected={iepData.accommodations.presentation}
-                onToggle={(item) => toggleAccommodation("presentation", item)}
-              />
-              <AccommodationGroup
-                title="Time and environment"
-                items={[
-                  "Extended time",
-                  "Preferential seating",
-                  "Reduced distractions room",
-                  "Frequent breaks",
-                ]}
-                selected={iepData.accommodations.timeEnvironment}
-                onToggle={(item) =>
-                  toggleAccommodation("timeEnvironment", item)
-                }
-              />
-              <AccommodationGroup
-                title="Response accommodations"
-                items={[
-                  "Oral responses allowed",
-                  "Scribe for written work",
-                  "Reduced writing volume",
-                  "Multiple choice format",
-                ]}
-                selected={iepData.accommodations.response}
-                onToggle={(item) => toggleAccommodation("response", item)}
-              />
+              <div className="mx-auto w-full ">
+                <section>
+                  <div className="mb-2">
+                    <h3 className="font-semibold">Accommodations</h3>
+                    <p className="text-sm text-base-content/55">
+                      Add supports the learner needs during instruction and
+                      assessment.
+                    </p>
+                  </div>
+                  <div className="divide-y divide-base-300">
+                    <div className="py-4">
+                      <CreatableSelectInput
+                        label="Presentation"
+                        value={iepData.accommodations.presentation}
+                        onChange={(values) =>
+                          updateAccommodation("presentation", values)
+                        }
+                        options={commonAccommodations}
+                        placeholder="Select or add presentation supports"
+                        helperText=""
+                        isMulti
+                        displaySelectedAsList
+                      />
+                    </div>
+                    <div className="py-4">
+                      <CreatableSelectInput
+                        label="Time and environment"
+                        value={iepData.accommodations.timeEnvironment}
+                        onChange={(values) =>
+                          updateAccommodation("timeEnvironment", values)
+                        }
+                        options={commonAccommodations}
+                        placeholder="Select or add time and setting supports"
+                        helperText=""
+                        isMulti
+                        displaySelectedAsList
+                      />
+                    </div>
+                    <div className="py-4">
+                      <CreatableSelectInput
+                        label="Response"
+                        value={iepData.accommodations.response}
+                        onChange={(values) =>
+                          updateAccommodation("response", values)
+                        }
+                        options={commonAccommodations}
+                        placeholder="Select or add response supports"
+                        helperText=""
+                        isMulti
+                        displaySelectedAsList
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="border-t border-base-300 pt-6">
+                  <div className="mb-4">
+                    <h3 className="font-semibold">Modifications</h3>
+                    <p className="text-sm text-base-content/55">
+                      Add changes to curriculum, tasks, or grading.
+                    </p>
+                  </div>
+                  <CreatableSelectInput
+                    label="Curriculum modifications"
+                    value={iepData.modifications}
+                    onChange={(values) =>
+                      setIepData((current) => ({
+                        ...current,
+                        modifications: toStringArray(values),
+                      }))
+                    }
+                    options={commonModifications}
+                    placeholder="Select or add modifications"
+                    helperText=""
+                    isMulti
+                    displaySelectedAsList
+                  />
+                </section>
+              </div>
             </SectionWrapper>
           )}
 
           {activeSection === 4 && (
             <SectionWrapper
               title="Special Education Services"
-              description="Identify who will support the student, where support happens, and how often it is provided."
+              description="Add services, providers, and schedules."
             >
               {iepData.services.map((service, index) => (
                 <div
@@ -1291,12 +1383,13 @@ const IEPBuilder = () => {
                     </button>
                   </div>
 
-                  <Input
-                    label="Service name"
+                  <CreatableSelectInput
+                    label="Service type"
                     value={service.name}
-                    onChange={(event) =>
-                      updateService(service.id, "name", event.target.value)
+                    onChange={(value) =>
+                      updateService(service.id, "name", value)
                     }
+                    options={serviceTypes}
                   />
 
                   <div className="grid gap-4 md:grid-cols-4 mt-2.5">
@@ -1307,7 +1400,6 @@ const IEPBuilder = () => {
                         updateService(service.id, "frequency", value)
                       }
                       options={serviceFrequencyOptions}
-                      styles={selectStyles}
                     />
 
                     <CreatableSelectInput
@@ -1317,17 +1409,15 @@ const IEPBuilder = () => {
                         updateService(service.id, "duration", value)
                       }
                       options={serviceDurationOptions}
-                      styles={selectStyles}
                     />
 
                     <CreatableSelectInput
-                      label="Setting"
+                      label="Service location"
                       value={service.setting}
                       onChange={(value) =>
                         updateService(service.id, "setting", value)
                       }
-                      options={serviceSettingOptions}
-                      styles={selectStyles}
+                      options={serviceLocations}
                     />
 
                     <CreatableSelectInput
@@ -1336,8 +1426,7 @@ const IEPBuilder = () => {
                       onChange={(value) =>
                         updateService(service.id, "provider", value)
                       }
-                      options={serviceProviderOptions}
-                      styles={selectStyles}
+                      options={serviceProviders}
                     />
                   </div>
                 </div>
@@ -1355,7 +1444,7 @@ const IEPBuilder = () => {
           {activeSection === 5 && (
             <SectionWrapper
               title="Review, Progress Monitoring & Export"
-              description="Choose how the teacher will check if the student is improving, then review and save the IEP."
+              description="Set progress monitoring and review the IEP."
               example="Use Print / PDF or Export Word in the left panel after saving the completed IEP."
             >
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1363,19 +1452,13 @@ const IEPBuilder = () => {
                   label="Data collection method"
                   value={iepData.progressPlan.dataMethod}
                   onChange={(value) => updateProgressPlan("dataMethod", value)}
-                  options={[
-                    "Trial-by-trial recording",
-                    "Percent correct",
-                    "Frequency count",
-                    "Duration recording",
-                    "Work sample review",
-                  ]}
+                  options={assessmentMethods}
                 />
                 <CreatableSelectInput
                   label="Collection frequency"
                   value={iepData.progressPlan.frequency}
                   onChange={(value) => updateProgressPlan("frequency", value)}
-                  options={["Daily", "2x per week", "Weekly", "Bi-weekly"]}
+                  options={progressFrequencies}
                 />
                 <CreatableSelectInput
                   label="Parent report schedule"
@@ -1383,7 +1466,7 @@ const IEPBuilder = () => {
                   onChange={(value) =>
                     updateProgressPlan("parentReport", value)
                   }
-                  options={["Monthly", "Quarterly", "Semi-annually"]}
+                  options={reportingSchedules}
                 />
                 <Input
                   label="Person responsible"
@@ -1419,22 +1502,18 @@ const IEPBuilder = () => {
               Back
             </Button>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => markSectionDone(activeSection)}>
-                <Check size={16} /> Mark Complete
-              </Button>
               {activeSection < sections.length - 1 ? (
                 <Button
                   onClick={async () => {
-                    markSectionDone(activeSection);
                     const saved = await handleSave();
                     if (saved) setActiveSection((section) => section + 1);
                   }}
                 >
-                  Save Draft & Next
+                  <Check size={16} /> Complete Section & Next
                 </Button>
               ) : (
                 <Button onClick={() => handleSave()} loading={isSaving}>
-                  <Save size={16} /> Review & Save IEP
+                  <Save size={16} /> Complete & Save IEP
                 </Button>
               )}
             </div>
@@ -1445,15 +1524,28 @@ const IEPBuilder = () => {
   );
 };
 
+const LearnerSummaryField = ({ label, value }) => (
+  <div className="bg-base-100 p-4">
+    <dt className="text-xs font-bold uppercase tracking-wide text-base-content/50">
+      {label}
+    </dt>
+    <dd className="mt-1 text-sm font-medium">
+      {value === undefined || value === null || String(value).trim() === ""
+        ? "Not specified"
+        : value}
+    </dd>
+  </div>
+);
+
 const SectionWrapper = ({ title, description, example, children }) => (
-  <section className="space-y-4 rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm sm:p-6">
+  <section className="space-y-5 rounded-xl bg-base-100 p-5 sm:p-6 border border-base-300">
     <div>
       <h2 className="text-2xl font-bold">{title}</h2>
-      <p className="mt-1 text-sm leading-6 text-base-content/60">{description}</p>
+      <p className="mt-1 text-sm leading-6 text-base-content/60">
+        {description}
+      </p>
       {example && (
-        <p className="mt-3 rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm leading-6 text-base-content/70">
-          {example}
-        </p>
+        <p className="mt-2 text-sm text-base-content/55">{example}</p>
       )}
     </div>
     {children}
@@ -1471,8 +1563,7 @@ const AiGoalSuggestionPanel = ({
       <div>
         <h3 className="font-semibold">AI Goal Suggestions</h3>
         <p className="mt-1 text-sm text-base-content/60">
-          Review every field before adding a suggestion. Nothing here is saved
-          automatically.
+          Review suggestions before adding them.
         </p>
       </div>
       <button
@@ -1492,7 +1583,7 @@ const AiGoalSuggestionPanel = ({
           className="rounded-lg border border-base-300 bg-base-100 p-4"
         >
           <div className="flex items-start justify-between gap-3">
-            <span className="badge badge-primary badge-outline">
+            <span className="text-xs font-semibold uppercase tracking-wide text-base-content/50">
               {suggestion.area || "Area not specified"}
             </span>
             <button
@@ -1599,14 +1690,16 @@ const GoalBuilderCard = ({
 
   if (!isExpanded) {
     return (
-      <article className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
+      <article className="rounded-xl border border-base-300 bg-base-100 p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-base-content">
                 {goal.area || `Goal ${index + 1}`}
               </span>
-              <span className="badge badge-outline">{goal.status}</span>
+              <span className="text-xs text-base-content/55">
+                {goal.status}
+              </span>
             </div>
             <p className="mt-3 text-sm font-semibold leading-6">
               {getGoalStatement(goal)}
@@ -1630,18 +1723,21 @@ const GoalBuilderCard = ({
             </div>
           </div>
           <div className="flex shrink-0 gap-2">
-            <Button size="sm" variant="secondary" icon={Pencil} onClick={onEdit}>
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={Pencil}
+              onClick={onEdit}
+            >
               Edit
             </Button>
             <Button
               size="sm"
-              variant="ghost"
+              variant="secondary"
               icon={Trash2}
               disabled={totalGoals === 1}
               onClick={onRemove}
-            >
-              Remove
-            </Button>
+            ></Button>
           </div>
         </div>
       </article>
@@ -1651,7 +1747,7 @@ const GoalBuilderCard = ({
   const warnings = getGoalWarnings(goal);
 
   return (
-    <article className="space-y-6 rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm sm:p-6">
+    <article className="space-y-6 rounded-xl border border-base-300 bg-base-100 p-5 sm:p-6">
       <div className="flex items-start justify-between gap-3 border-b border-base-300 pb-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-base-content">
@@ -1669,14 +1765,13 @@ const GoalBuilderCard = ({
               ? "Hide Advanced Fields"
               : "Show Advanced Fields"}
           </Button>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm text-base-content"
-            onClick={onRemove}
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={Trash2}
             disabled={totalGoals === 1}
-          >
-            <Trash2 className="h-5 w-5" /> Remove
-          </button>
+            onClick={onRemove}
+          ></Button>
         </div>
       </div>
 
@@ -1705,7 +1800,8 @@ const GoalBuilderCard = ({
             rows={3}
           />
           <p className="mt-1 text-xs text-base-content/55">
-            Describe what the learner can currently do and what support is needed.
+            Describe what the learner can currently do and what support is
+            needed.
           </p>
         </div>
 
@@ -1769,8 +1865,8 @@ const GoalBuilderCard = ({
           <div>
             <h4 className="text-lg font-bold">Advanced Goal Details</h4>
             <p className="mt-1 text-sm text-base-content/60">
-              Add baseline evidence, structured goal parts, objectives, supports,
-              and reporting details when needed.
+              Add baseline evidence, structured goal parts, objectives,
+              supports, and reporting details when needed.
             </p>
           </div>
 
@@ -1981,7 +2077,9 @@ const GoalSection = ({ letter, title, helper, children }) => (
       <div>
         <h4 className="font-bold">{title}</h4>
         {helper && (
-          <p className="mt-1 text-sm leading-6 text-base-content/60">{helper}</p>
+          <p className="mt-1 text-sm leading-6 text-base-content/60">
+            {helper}
+          </p>
         )}
       </div>
     </div>
@@ -2015,7 +2113,7 @@ const GoalBankPicker = ({
           <X size={14} />
         </button>
       </div>
-      <label className="input input-bordered flex w-full items-center gap-2 border border-base-300">
+      <label className="input input-bordered flex w-full items-center gap-2 rounded-sm border border-base-300 focus-within:outline-none focus-within:ring-0">
         <Search className="h-4 w-4 opacity-60" />
         <input
           type="text"
@@ -2032,19 +2130,11 @@ const GoalBankPicker = ({
         {templates.map((goal) => (
           <article
             key={goal.id}
-            className="rounded-md border border-base-300 bg-base-100 p-3"
+            className="border-b border-base-300 py-3 last:border-0"
           >
-            <div className="mb-2 flex flex-wrap gap-2">
-              <span className="badge badge-outline">
-                {goal.area || "General"}
-              </span>
-              <span className="badge badge-ghost">
-                {goal.difficulty}
-              </span>
-              {goal.isCustom && (
-                <span className="badge badge-primary">Custom</span>
-              )}
-            </div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-base-content/50">
+              {goal.area || "General"}
+            </p>
             <div className="space-y-3">
               <div className="min-w-0">
                 <h4 className="text-sm font-semibold">{goal.skillFocus}</h4>
@@ -2052,7 +2142,8 @@ const GoalBankPicker = ({
                   {goal.goalText}
                 </p>
                 <p className="mt-2 line-clamp-1 text-xs text-base-content/55">
-                  {goal.measurementMethod || "Measurement not set"} / {goal.frequency}
+                  {goal.measurementMethod || "Measurement not set"} /{" "}
+                  {goal.frequency}
                 </p>
               </div>
               <Button
@@ -2072,42 +2163,6 @@ const GoalBankPicker = ({
       </div>
     )}
   </aside>
-);
-
-const AccommodationGroup = ({ title, items, selected, onToggle }) => (
-  <div>
-    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-base-content/50">
-      {title}
-    </div>
-    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-      {items.map((item) => {
-        const isChecked = selected.includes(item);
-        return (
-          <button
-            key={item}
-            type="button"
-            onClick={() => onToggle(item)}
-            className={`flex items-center gap-3 rounded-lg border p-3 text-left text-sm transition-colors ${
-              isChecked
-                ? "border-success/30 bg-success/10"
-                : "border-base-300 bg-base-100 hover:bg-base-200"
-            }`}
-          >
-            <span
-              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded ${
-                isChecked
-                  ? "bg-success text-success-content"
-                  : "border-2 border-base-300"
-              }`}
-            >
-              {isChecked && <Check size={12} strokeWidth={3} />}
-            </span>
-            <span>{item}</span>
-          </button>
-        );
-      })}
-    </div>
-  </div>
 );
 
 export default IEPBuilder;

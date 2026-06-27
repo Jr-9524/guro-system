@@ -10,7 +10,9 @@ const getPageNumbers = (currentPage, totalPages) => {
     currentPage,
     currentPage + 1,
   ]);
-  const sorted = [...pages].filter((page) => page > 0 && page <= totalPages).sort((a, b) => a - b);
+  const sorted = [...pages]
+    .filter((page) => page > 0 && page <= totalPages)
+    .sort((a, b) => a - b);
   const result = [];
 
   sorted.forEach((page, index) => {
@@ -48,7 +50,7 @@ const Pagination = ({
           <label className="flex items-center gap-1.5 whitespace-nowrap">
             <span>Per page:</span>
             <select
-              className="h-9 min-h-0 w-16 cursor-pointer rounded-lg border border-base-300 bg-base-100 px-2 py-0 text-sm font-semibold text-base-content outline-none transition-colors hover:border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/15"
+              className="h-9 min-h-0 w-16 cursor-pointer rounded-sm border border-base-300 bg-base-100 px-2 py-0 text-sm font-semibold text-base-content outline-none transition-colors hover:border-primary/40 focus:border-primary focus:ring-0"
               value={pageSize}
               onChange={(event) => onPageSizeChange(Number(event.target.value))}
               aria-label={`${itemLabel} per page`}
@@ -63,7 +65,10 @@ const Pagination = ({
         )}
       </div>
 
-      <nav className="flex flex-wrap items-center gap-1" aria-label={`${itemLabel} pagination`}>
+      <nav
+        className="flex flex-wrap items-center gap-1"
+        aria-label={`${itemLabel} pagination`}
+      >
         <button
           type="button"
           className={buttonClass}
@@ -74,7 +79,11 @@ const Pagination = ({
         </button>
         {getPageNumbers(currentPage, totalPages).map((page) =>
           typeof page === "string" ? (
-            <span key={page} className="px-1 text-base-content/40" aria-hidden="true">
+            <span
+              key={page}
+              className="px-1 text-base-content/40"
+              aria-hidden="true"
+            >
               ...
             </span>
           ) : (

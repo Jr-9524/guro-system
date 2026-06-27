@@ -32,7 +32,6 @@ function initDatabase() {
 
   createTables();
   migrateSchema();
-  insertDefaultData();
 
   console.log("Database initialized at:", dbPath);
   return db;
@@ -213,34 +212,6 @@ function addMissingColumns(tableName, columns) {
   }
 }
 
-function insertDefaultData() {
-  const bcrypt = require("bcryptjs");
-  const insertUser = db.prepare(
-    "INSERT OR IGNORE INTO users " +
-      "(id, username, password_hash, full_name, role) " +
-      "VALUES (?, ?, ?, ?, ?)",
-  );
-
-  // Development/demo accounts. Change or remove these before deployment.
-  [
-    ["admin-1", "admin", "admin123", "Admin User", "admin"],
-    [
-      "coordinator-1",
-      "coordinator",
-      "coordinator123",
-      "SPED Coordinator",
-      "sped_coordinator",
-    ],
-  ].forEach(([id, username, password, fullName, role]) => {
-    insertUser.run(
-      id,
-      username,
-      bcrypt.hashSync(password, 12),
-      fullName,
-      role,
-    );
-  });
-}
 function closeDatabase() {
   if (db?.open) db.close();
   db = null;

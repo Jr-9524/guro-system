@@ -1,5 +1,6 @@
 import { getGoalStatement, normalizeGoal } from "./goalUtils";
 import { getIepStudentName } from "./studentUtils";
+import { getIepDates, getStudentSummaryForIep } from "./iepStudentUtils";
 
 export const getProgressSummaryKey = (iepId) =>
   `report:ai-progress-summary:${iepId}`;
@@ -10,15 +11,16 @@ export const buildProgressSummaryPayload = ({
   progressSessions = [],
 }) => {
   const data = iep?.data || {};
-  const info = data.studentInfo || {};
+  const learner = getStudentSummaryForIep(iep);
+  const dates = getIepDates(iep);
   const plaafp = data.plaaFP || data.plaafp || {};
   const goals = (data.goals || []).map(normalizeGoal);
 
   return {
     studentName: studentName || getIepStudentName(iep),
-    gradeLevel: info.gradeLevel,
+    gradeLevel: learner.gradeLevel,
     iepTitle: iep?.title,
-    iepPeriod: [info.iepStartDate, info.iepEndDate]
+    iepPeriod: [dates.startDate, dates.endDate]
       .filter(Boolean)
       .join(" to "),
     plaafpDraft: plaafp.aiDraft || plaafp.statement,

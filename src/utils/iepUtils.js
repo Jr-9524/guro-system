@@ -1,4 +1,5 @@
 import { parseJsonValue } from "./jsonUtils";
+import { getIepDates } from "./iepStudentUtils";
 
 export const normalizeIep = (iep) => {
   if (!iep) return null;
@@ -25,14 +26,14 @@ export const getCompletionPercent = (iep) =>
   Math.round(((iep.completedSections?.length || 0) / 6) * 100);
 
 export const getComplianceIssues = (iep) => {
-  const info = iep.data?.studentInfo || {};
+  const dates = getIepDates(iep);
   const goals = iep.data?.goals || [];
   const plaaFP = iep.data?.plaaFP || {};
   const issues = [];
 
   if ((iep.completedSections?.length || 0) < 6) issues.push("Incomplete");
-  if (!info.iepStartDate) issues.push("No start date");
-  if (!info.iepEndDate) issues.push("No end date");
+  if (!dates.startDate) issues.push("No start date");
+  if (!dates.endDate) issues.push("No end date");
   if (!goals.length || goals.some((goal) => !goal.description?.trim())) {
     issues.push("Goal details");
   }

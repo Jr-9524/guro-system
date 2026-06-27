@@ -82,10 +82,11 @@ const SearchPage = () => {
         <div className="mt-3 flex flex-wrap gap-2">
           {searchCategories.map((category) => (
             <button
+              type="button"
               key={category.value}
               className={`btn btn-sm px-3 py-2 ${
                 activeCategory === category.value
-                  ? "btn-active bg-gray-100"
+                  ? "btn-active bg-primary text-primary-content"
                   : "btn-outline"
               }`}
               onClick={() => setActiveCategory(category.value)}
@@ -133,7 +134,7 @@ const SearchResultRow = ({ result }) => {
       className="flex flex-col gap-3 p-4 transition-colors hover:bg-base-200 md:flex-row md:items-center md:justify-between"
     >
       <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-base-content">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center text-base-content">
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0">

@@ -10,7 +10,6 @@ import {
   Download,
   FileSpreadsheet,
   Mail,
-  MoreHorizontal,
   Pencil,
   Phone,
   Plus,
@@ -32,6 +31,7 @@ import {
 import auditService from "../services/auditService";
 
 import Button from "../components/common/Button";
+import ActionMenu from "../components/common/ActionMenu";
 import Modal from "../components/common/Modal";
 import Stat from "../components/common/Stat";
 import StudentForm from "../components/students/StudentForm";
@@ -42,7 +42,12 @@ import usePagination from "../hooks/usePagination";
 
 import { formatDate } from "../utils/dateUtils";
 import { normalizeIep } from "../utils/iepUtils";
-import { getStudentFullName, getStudentInitials } from "../utils/studentUtils";
+import {
+  getIepStudentName,
+  getStudentFullName,
+  getStudentInitials,
+} from "../utils/studentUtils";
+import { getIepDates } from "../utils/iepStudentUtils";
 
 const Views = {
   TABLE: "table",
@@ -307,31 +312,35 @@ const StudentsView = () => {
     return (
       <div className="flex min-h-full w-full flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Button onClick={() => navigate("/students")} icon={ArrowLeft}>
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/students")}
+            icon={ArrowLeft}
+          >
             Students
           </Button>
           <div className="flex items-center gap-2">
             <Button
               onClick={() => setEditingStudent(selectedStudent)}
               icon={Pencil}
-              className="border border-gray-300 p-2"
+              variant="secondary"
             >
               Edit
             </Button>
             <Button
               onClick={() => setDeleteConfirm(selectedStudent)}
               icon={Trash2}
-              className="border border-gray-300 p-2"
+              variant="ghost"
             >
               Delete
             </Button>
           </div>
         </div>
 
-        <section className="rounded-lg border border-gray-300 bg-base-100 p-4">
+        <section className="rounded-xl bg-base-100 p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary text-xl font-bold text-primary-content">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-base-200 text-lg font-bold text-base-content">
                 {getStudentInitials(selectedStudent)}
               </div>
               <div className="min-w-0">
@@ -344,18 +353,11 @@ const StudentsView = () => {
                     ? ` • ${selectedStudent.section}`
                     : ""}
                 </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <span className="badge badge-outline font-mono">
-                    LRN {selectedStudent.lrn || "Not set"}
-                  </span>
-                  <span
-                    className={`badge ${
-                      selectedStudent.isActive ? "badge-success" : "badge-ghost"
-                    }`}
-                  >
+                <div className="mt-2 flex flex-wrap gap-3 text-xs text-base-content/55">
+                  <span>LRN {selectedStudent.lrn || "Not set"}</span>
+                  <span>
                     {selectedStudent.isActive ? "Active" : "Inactive"}
                   </span>
-                  <span className="badge badge-outline">No IEP</span>
                 </div>
               </div>
             </div>
@@ -364,7 +366,7 @@ const StudentsView = () => {
 
         <div className="grid flex-1 grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="space-y-3">
-            <section className="self-start rounded-lg border border-gray-300 bg-base-100 p-5">
+            <section className="self-start rounded-xl bg-base-100 p-5">
               <h2 className="mb-2 text-base font-semibold">
                 Student Information
               </h2>
@@ -415,7 +417,7 @@ const StudentsView = () => {
           </div>
 
           <aside className="grid gap-3 md:grid-cols-3 xl:grid-cols-1">
-            <section className="rounded-lg border border-gray-300 bg-base-100 p-5">
+            <section className="rounded-xl bg-base-100 p-5">
               <div className="mb-3 flex items-center gap-2">
                 <h2 className="text-base font-semibold">Support Profile</h2>
               </div>
@@ -435,7 +437,7 @@ const StudentsView = () => {
               </div>
             </section>
 
-            <section className="rounded-lg border border-gray-300 bg-base-100 p-5">
+            <section className="rounded-xl bg-base-100 p-5">
               <h2 className="mb-3 text-base font-semibold">Guardian</h2>
               <div className="space-y-3">
                 <Info
@@ -466,7 +468,7 @@ const StudentsView = () => {
 
   return (
     <div className="min-h-full w-full space-y-6">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      {/* <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="grid w-full grid-cols-3 gap-3">
           <Stat
             label="Total"
@@ -487,7 +489,7 @@ const StudentsView = () => {
             icon={NotebookText}
           />
         </div>
-      </div>
+      </div> */}
 
       <div className="border-gray-300 space-y-4">
         {/* Top row */}
@@ -495,34 +497,35 @@ const StudentsView = () => {
           <div>
             <h2 className="text-xl font-semibold">Students</h2>
             <p className="text-sm text-base-content/60">
-              Manage student profiles and IEP records
+              Student profiles and IEPs.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              onClick={handleExport}
-              icon={Download}
-              className="border border-gray-300 p-1.5"
-            >
-              Export CSV
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => setIsImportModalOpen(true)}
-              icon={Upload}
-              className="border border-gray-300 p-1.5"
-            >
-              Import CSV
-            </Button>
+            <ActionMenu
+              label="Student data options"
+              items={[
+                {
+                  id: "export",
+                  label: "Export CSV",
+                  icon: Download,
+                  onClick: handleExport,
+                },
+                {
+                  id: "import",
+                  label: "Import CSV",
+                  icon: Upload,
+                  onClick: () => setIsImportModalOpen(true),
+                },
+              ]}
+            />
             <Button
               size="sm"
               onClick={() => setIsAddModalRequested(true)}
               icon={Plus}
-              className="border border-gray-300 p-1.5"
+              className="border border-gray-300"
             >
-              Quick Add Student
+              Add New
             </Button>
           </div>
         </div>
@@ -552,7 +555,7 @@ const StudentsView = () => {
         {/* Filters */}
         <div className="flex flex-wrap gap-2">
           <select
-            className="select border border-gray-300 cursor-pointer p-1.5"
+            className="select cursor-pointer rounded-sm border border-gray-300 p-1.5 focus:outline-none focus:ring-0"
             value={`${sortBy}:${sortOrder}`}
             onChange={(event) => {
               const [nextSortBy, nextSortOrder] = event.target.value.split(":");
@@ -569,7 +572,7 @@ const StudentsView = () => {
           </select>
 
           <select
-            className="select border border-gray-300 cursor-pointer p-1.5"
+            className="select cursor-pointer rounded-sm border border-gray-300 p-1.5 focus:outline-none focus:ring-0"
             value={filters.gradeLevel}
             onChange={(event) => {
               setFilter("gradeLevel", event.target.value);
@@ -584,7 +587,7 @@ const StudentsView = () => {
           </select>
 
           <select
-            className="select border border-gray-300 cursor-pointer p-1.5"
+            className="select cursor-pointer rounded-sm border border-gray-300 p-1.5 focus:outline-none focus:ring-0"
             value={filters.status}
             onChange={(event) => {
               setFilter("status", event.target.value);
@@ -816,7 +819,7 @@ const StudentImportTool = ({ existingStudents, onImport, onCancel }) => {
                 {parsedStudents.slice(0, 20).map((student) => (
                   <tr key={student.lrn}>
                     <td>{getStudentFullName(student)}</td>
-                    <td className="font-mono">{student.lrn}</td>
+                    <td>{student.lrn}</td>
                     <td>{student.gradeLevel}</td>
                     <td>{student.guardianName || "Not set"}</td>
                   </tr>
@@ -855,7 +858,7 @@ const StudentImportTool = ({ existingStudents, onImport, onCancel }) => {
 };
 
 const IepHistoryPanel = ({ ieps, isLoading, onCreate, onOpen }) => (
-  <section className="rounded-lg border border-gray-300 bg-base-100 p-5">
+  <section className="rounded-xl bg-base-100 p-5">
     <div className="mb-2 flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
         <h2 className="text-base font-semibold">IEP History</h2>
@@ -873,6 +876,7 @@ const IepHistoryPanel = ({ ieps, isLoading, onCreate, onOpen }) => (
       <div className="divide-y divide-gray-300 rounded-lg border border-gray-300">
         {ieps.slice(0, 4).map((iep) => (
           <button
+            type="button"
             key={iep.id}
             className="flex w-full items-center justify-between gap-3 p-3 text-left transition-colors hover:bg-base-200"
             onClick={() => onOpen(iep)}
@@ -1026,6 +1030,7 @@ const StudentCalendar = ({
                 <div className="space-y-1">
                   {dayEvents.slice(0, 3).map((event) => (
                     <button
+                      type="button"
                       key={event.id}
                       className={`block w-full truncate rounded px-2 py-1 text-left text-xs ${event.color}`}
                       onClick={() => openEvent(event)}
@@ -1056,6 +1061,7 @@ const StudentCalendar = ({
           <div className="space-y-2">
             {events.map((event) => (
               <button
+                type="button"
                 key={event.id}
                 className="w-full rounded-lg border border-gray-300 p-3 text-left transition-colors hover:bg-base-200"
                 onClick={() => openEvent(event)}
@@ -1121,12 +1127,12 @@ const buildCalendarEvents = (students, ieps, monthStart) => {
   });
 
   ieps.forEach((iep) => {
-    const info = iep.data?.studentInfo || {};
-    const name = [info.firstName, info.lastName].filter(Boolean).join(" ");
+    const dates = getIepDates(iep);
+    const name = getIepStudentName(iep);
 
     addIepEvent(events, {
       iep,
-      dateValue: info.iepStartDate,
+      dateValue: dates.startDate,
       title: `${name || iep.title} IEP starts`,
       subtitle: iep.title,
       color: "bg-success/15 text-base-content",
@@ -1134,15 +1140,15 @@ const buildCalendarEvents = (students, ieps, monthStart) => {
     });
     addIepEvent(events, {
       iep,
-      dateValue: info.iepEndDate,
+      dateValue: dates.endDate,
       title: `${name || iep.title} IEP ends`,
       subtitle: "Annual review due",
       color: "bg-warning/20 text-base-content",
       month,
     });
 
-    if (info.iepEndDate) {
-      const reviewDate = new Date(info.iepEndDate);
+    if (dates.endDate) {
+      const reviewDate = new Date(dates.endDate);
       if (!Number.isNaN(reviewDate.getTime())) {
         reviewDate.setDate(reviewDate.getDate() - 30);
         addIepEvent(events, {
@@ -1233,7 +1239,7 @@ const StudentTable = ({ students, onOpen, onEdit, onDelete }) => (
                 </div>
               </div>
             </td>
-            <td className="font-mono text-sm">{student.lrn || "Not set"}</td>
+            <td className="text-sm">{student.lrn || "Not set"}</td>
             <td>
               <span className="badge badge-ghost badge-sm">
                 Grade {student.gradeLevel || "?"}
@@ -1247,28 +1253,24 @@ const StudentTable = ({ students, onOpen, onEdit, onDelete }) => (
               <span className="badge badge-outline badge-sm">No IEP</span>
             </td>
             <td onClick={(event) => event.stopPropagation()}>
-              <div className="dropdown dropdown-end">
-                <button className="btn btn-ghost btn-xs btn-square">
-                  <MoreHorizontal className="h-4 w-4" />
-                </button>
-                <ul className="dropdown-content menu z-[1] w-40 rounded-box bg-base-100 p-2 shadow">
-                  <li>
-                    <button onClick={() => onEdit(student)}>
-                      <Pencil className="h-4 w-4" />
-                      Edit
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      onClick={() => onDelete(student)}
-                      className="text-base-content"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete
-                    </button>
-                  </li>
-                </ul>
-              </div>
+              <ActionMenu
+                label={`Actions for ${getStudentFullName(student)}`}
+                items={[
+                  {
+                    id: "edit",
+                    label: "Edit",
+                    icon: Pencil,
+                    onClick: () => onEdit(student),
+                  },
+                  {
+                    id: "delete",
+                    label: "Delete",
+                    icon: Trash2,
+                    danger: true,
+                    onClick: () => onDelete(student),
+                  },
+                ]}
+              />
             </td>
           </tr>
         ))}

@@ -135,7 +135,8 @@ const StudentForm = ({ student, onSuccess, onCancel }) => {
             value={formData.gradeLevel}
             onChange={(value) => handleChange("gradeLevel", value)}
             options={gradeLevels}
-            placeholder="Select Grade"
+            placeholder="Select or type to add"
+            helperText="Select an option or type a custom value."
             error={errors.gradeLevel}
             required
           />
@@ -248,7 +249,8 @@ const StudentForm = ({ student, onSuccess, onCancel }) => {
                 onChange={(value) =>
                   handleChange("primaryDisabilityCategory", value)
                 }
-                placeholder="Select category"
+                placeholder="Select or type to add"
+                helperText="Select an option or type a custom value."
                 options={disabilityCategories}
               />
 
@@ -264,7 +266,8 @@ const StudentForm = ({ student, onSuccess, onCancel }) => {
                 label="Communication Mode"
                 value={formData.communicationMode}
                 onChange={(value) => handleChange("communicationMode", value)}
-                placeholder="Select mode"
+                placeholder="Select or type to add"
+                helperText="Select an option or type a custom value."
                 options={communicationModes}
               />
             </div>

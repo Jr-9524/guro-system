@@ -1,5 +1,4 @@
-const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-const DEFAULT_MODEL = "llama-3.1-8b-instant";
+const aiSettings = require("./ai-settings-service.cjs");
 const REQUEST_TIMEOUT_MS = 30000;
 const MAX_FIELD_LENGTH = 4000;
 
@@ -84,61 +83,67 @@ const normalizeGoalPayload = (payload = {}) => ({
   ).slice(0, MAX_FIELD_LENGTH),
 });
 
-async function requestGroq({ systemPrompt, userPrompt, maxTokens }) {
-  const apiKey = process.env.GROQ_API_KEY?.trim();
-  if (!apiKey) {
-    throw new Error(
-      "Groq is not configured. Set GROQ_API_KEY before starting GURO System.",
-    );
+async function callChatCompletion(
+  { messages, temperatureOverride, maxTokens = 800 },
+  candidateSettings,
+) {
+  const settings = candidateSettings
+    ? aiSettings.resolveCandidateSettings(candidateSettings)
+    : aiSettings.getRuntimeSettings();
+  if (!settings) {
+    throw new Error("AI provider is not configured. Please ask an administrator to set it up in Settings.");
   }
-
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
   try {
-    const response = await fetch(GROQ_API_URL, {
+    const response = await fetch(settings.baseUrl + "/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: "Bearer " + settings.apiKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.GROQ_MODEL?.trim() || DEFAULT_MODEL,
-        temperature: 0.2,
+        model: settings.model,
+        temperature: temperatureOverride === undefined ? settings.temperature : temperatureOverride,
         max_tokens: maxTokens,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
+        messages,
       }),
       signal: controller.signal,
     });
-
     const result = await response.json().catch(() => null);
-    if (!response.ok) {
-      const detail = result?.error?.message;
-      throw new Error(
-        detail
-          ? `Groq could not complete the request: ${detail}`
-          : `Groq could not complete the request (HTTP ${response.status}).`,
-      );
-    }
-
+    if (!response.ok) throw new Error("AI provider request failed. Check the configured key, URL, and model.");
     const text = result?.choices?.[0]?.message?.content?.trim();
-    if (!text) throw new Error("Groq returned an empty response.");
+    if (!text) throw new Error("AI provider returned an empty response.");
     return text;
   } catch (error) {
-    if (error.name === "AbortError") {
-      throw new Error(
-        "The AI request timed out. Check the connection and try again.",
-      );
-    }
+    if (error.name === "AbortError") throw new Error("The AI request timed out. Check the connection and try again.");
     throw error;
   } finally {
     clearTimeout(timeout);
   }
 }
 
+const requestDraft = ({ systemPrompt, userPrompt, maxTokens }) =>
+  callChatCompletion({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperatureOverride: 0.2,
+    maxTokens,
+  });
+
+async function testConnection(candidateSettings) {
+  try {
+    await callChatCompletion(
+      { messages: [{ role: "user", content: "Reply with only OK." }], temperatureOverride: 0, maxTokens: 8 },
+      candidateSettings,
+    );
+    return { success: true, message: "Connection successful." };
+  } catch {
+    return { success: false, message: "Connection failed. Check API key, base URL, and model." };
+  }
+}
 async function generatePlaafp(payload) {
   const context = formatContext(normalizePayload(payload));
   if (!context) {
@@ -147,7 +152,7 @@ async function generatePlaafp(payload) {
     );
   }
 
-  return requestGroq({
+  return requestDraft({
     systemPrompt: PLAAFP_SYSTEM_PROMPT,
     userPrompt: `Draft the PLAAFP using only this teacher-provided context:\n\n${context}`,
     maxTokens: 700,
@@ -194,7 +199,7 @@ async function suggestGoals(payload) {
     );
   }
 
-  const text = await requestGroq({
+  const text = await requestDraft({
     systemPrompt: GOAL_SYSTEM_PROMPT,
     userPrompt: `Suggest annual goals using only this teacher-provided context:\n\n${context}`,
     maxTokens: 1800,
@@ -208,12 +213,12 @@ async function suggestGoals(payload) {
       .trim();
     parsed = JSON.parse(jsonText);
   } catch {
-    throw new Error("Groq returned an invalid goal format. Please try again.");
+    throw new Error("The AI provider returned an invalid goal format. Please try again.");
   }
 
   if (!Array.isArray(parsed?.goals)) {
     throw new Error(
-      "Groq did not return a valid goals list. Please try again.",
+      "The AI provider did not return a valid goals list. Please try again.",
     );
   }
 
@@ -222,7 +227,7 @@ async function suggestGoals(payload) {
     .map(normalizeSuggestion)
     .filter((goal) => goal.annualGoal.behavior && goal.annualGoal.criteria);
   if (!goals.length)
-    throw new Error("Groq did not return any goal suggestions.");
+    throw new Error("The AI provider did not return any goal suggestions.");
   return { goals };
 }
 
@@ -272,11 +277,11 @@ async function summarizeProgress(payload) {
     );
   }
 
-  return requestGroq({
+  return requestDraft({
     systemPrompt: PROGRESS_SYSTEM_PROMPT,
     userPrompt: `Write the progress summary using only this teacher-provided JSON context:\n\n${JSON.stringify(context)}`,
     maxTokens: 1000,
   });
 }
 
-module.exports = { generatePlaafp, suggestGoals, summarizeProgress };
+module.exports = { callChatCompletion, testConnection, generatePlaafp, suggestGoals, summarizeProgress };

@@ -14,9 +14,10 @@ import {
 import toast from "react-hot-toast";
 import Stat from "../components/common/Stat";
 import auditService from "../services/auditService";
-import Button from "../components/common/Button";
+import ActionMenu from "../components/common/ActionMenu";
 import SearchInput from "../components/common/SearchInput";
 import Pagination from "../components/common/Pagination";
+import SectionTabs from "../components/common/SectionTabs";
 import PageHeader from "../components/common/PageHeader";
 import usePagination from "../hooks/usePagination";
 import useAuthStore from "../stores/authStore";
@@ -117,16 +118,28 @@ const ActivityLog = () => {
         title="Activity Log"
         description="Review recent student, IEP, progress, and data-management activity."
         actions={
-          <>
-            <Button variant="secondary" onClick={exportActivity} icon={Download}>
-              Export
-            </Button>
-            {isAdmin(user) && (
-              <Button variant="danger" onClick={clearActivity} icon={Trash2}>
-                Clear Activity
-              </Button>
-            )}
-          </>
+          <ActionMenu
+            label="Activity log options"
+            items={[
+              {
+                id: "export",
+                label: "Export activity",
+                icon: Download,
+                onClick: exportActivity,
+              },
+              ...(isAdmin(user)
+                ? [
+                    {
+                      id: "clear",
+                      label: "Clear activity",
+                      icon: Trash2,
+                      danger: true,
+                      onClick: clearActivity,
+                    },
+                  ]
+                : []),
+            ]}
+          />
         }
       />
 
@@ -148,24 +161,19 @@ const ActivityLog = () => {
           autoFocus
         />
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          {filters.map((filter) => (
-            <button
-              key={filter.value}
-              className={`btn btn-sm px-3 py-2 ${
-                activeFilter === filter.value
-                  ? "btn-active bg-gray-100"
-                  : "btn-outline"
-              }`}
-              onClick={() => {
-                setActiveFilter(filter.value);
-                pagination.goToPage(1);
-              }}
-            >
-              {filter.label}
-              <span>{counts[filter.value] || 0}</span>
-            </button>
-          ))}
+        <div className="mt-3">
+          <SectionTabs
+            label="Activity types"
+            activeId={activeFilter}
+            items={filters.map((filter) => ({
+              id: filter.value,
+              label: filter.label + " (" + (counts[filter.value] || 0) + ")",
+            }))}
+            onChange={(filter) => {
+              setActiveFilter(filter);
+              pagination.goToPage(1);
+            }}
+          />
         </div>
       </section>
 
@@ -205,7 +213,7 @@ const ActivityLog = () => {
 const ActivityRow = ({ item }) => {
   const content = (
     <>
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-base-content">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center text-base-content">
         <ActivityTypeIcon type={item.type} />
       </div>
       <div className="min-w-0 flex-1">

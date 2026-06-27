@@ -3,7 +3,8 @@ import { ArrowLeft, FileBarChart, Pencil, Printer } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import Button from "../components/common/Button";
-import ButtonLink from "../components/common/ButtonLink";
+import ActionMenu from "../components/common/ActionMenu";
+import IconButton from "../components/common/IconButton";
 import LoadingSpinner from "../components/common/LoadingSpinner";
 import FormalIepReport from "../components/reports/FormalIepReport";
 import iepService from "../services/iepService";
@@ -90,39 +91,43 @@ const IEPViewer = () => {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="report-screen-only sticky top-0 z-20 flex flex-col gap-3 rounded-xl border border-base-300 bg-base-100/95 p-3 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto max-w-[220mm] space-y-5">
+      <div className="report-screen-only sticky top-3 z-20 flex flex-col gap-3 rounded-sm border-2 border-base-content/25 bg-base-100/95 px-4 py-3 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-semibold">Read-only IEP preview</p>
           <p className="text-xs text-base-content/60">
-            Review the document below. Choose Edit IEP to make changes.
+            Review, print, or edit this IEP.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="secondary"
+          <IconButton
             icon={ArrowLeft}
+            label="Back"
             onClick={() => navigate(-1)}
-          >
-            Back
-          </Button>
-          <ButtonLink
-            variant="secondary"
-            icon={Pencil}
-            to={"/iep/" + iep.id + "/edit"}
-          >
-            Edit IEP
-          </ButtonLink>
-          <ButtonLink
-            variant="secondary"
-            icon={FileBarChart}
-            to={"/reports/iep/" + iep.id}
-          >
-            Export / Report
-          </ButtonLink>
-          <Button icon={Printer} onClick={() => window.print()}>
-            Print
-          </Button>
+          />
+          <ActionMenu
+            label="IEP document options"
+            items={[
+              {
+                id: "edit",
+                label: "Edit IEP",
+                icon: Pencil,
+                to: "/iep/" + iep.id + "/edit",
+              },
+              {
+                id: "report",
+                label: "Export / Report",
+                icon: FileBarChart,
+                to: "/reports/iep/" + iep.id,
+              },
+              {
+                id: "print",
+                label: "Print",
+                icon: Printer,
+                onClick: () => window.print(),
+              },
+            ]}
+          />
         </div>
       </div>
 

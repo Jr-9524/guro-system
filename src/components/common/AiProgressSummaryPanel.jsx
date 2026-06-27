@@ -39,7 +39,7 @@ const AiProgressSummaryPanel = ({
       </div>
     </div>
     <textarea
-      className="textarea textarea-bordered mt-4 min-h-48 w-full leading-relaxed"
+      className="textarea textarea-bordered mt-4 min-h-48 w-full rounded-sm leading-relaxed focus:outline-none focus:ring-0"
       value={value}
       onChange={(event) => onChange(event.target.value)}
       aria-label="Editable AI progress summary"

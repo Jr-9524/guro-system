@@ -20,21 +20,25 @@ import {
   Users,
 } from "lucide-react";
 import Button from "../components/common/Button";
+import ActionMenu from "../components/common/ActionMenu";
+import IconButton from "../components/common/IconButton";
 import LoadingSpinner from "../components/common/LoadingSpinner";
 import Panel from "../components/common/Panel";
 import Stat from "../components/common/Stat";
 import SectionTabs from "../components/common/SectionTabs";
 import PageHeader from "../components/common/PageHeader";
 import AiProgressSummaryPanel from "../components/common/AiProgressSummaryPanel";
+import SelectInput from "../components/forms/SelectInput";
 import FormalIepReport from "../components/reports/FormalIepReport";
 import iepService from "../services/iepService";
 import progressService from "../services/progressService";
+import aiSettingsService from "../services/aiSettingsService";
 import studentService from "../services/studentService";
 import workspaceStoreService from "../services/workspaceStoreService";
 import useAuthStore from "../stores/authStore";
-import { downloadIepWordDocument } from "../services/iepExportService";
 import { formatDate } from "../utils/dateUtils";
 import { getIepStudentName } from "../utils/studentUtils";
+import { getIepDates } from "../utils/iepStudentUtils";
 import { getCompletionPercent, getComplianceIssues } from "../utils/iepUtils";
 import {
   getGoalStatement,
@@ -50,23 +54,23 @@ import { hasPermission, PERMISSIONS } from "../utils/permissions";
 const reportConfig = {
   overview: {
     title: "Reports",
-    description: "Review IEP activity, compliance needs, and student coverage.",
+    description: "IEP activity and student coverage.",
   },
   progress: {
     title: "Progress Reports",
-    description: "Review student goals and monitoring plans across IEPs.",
+    description: "Goal progress and monitoring.",
   },
   compliance: {
     title: "Compliance Report",
-    description: "Find incomplete IEPs, missing dates, and plans due soon.",
+    description: "Incomplete and upcoming IEPs.",
   },
   analytics: {
     title: "Analytics",
-    description: "See student, IEP, and completion trends at a glance.",
+    description: "Student and IEP trends.",
   },
   document: {
     title: "IEP Document",
-    description: "Review a formal IEP document before printing or export.",
+    description: "Preview, print, or export an IEP.",
   },
 };
 
@@ -174,7 +178,11 @@ const Reports = ({ view = "overview" }) => {
   }, [selectedIep]);
 
   const selectIep = (iepId) => {
-    navigate(iepId ? `/reports/iep?iepId=${encodeURIComponent(iepId)}` : "/reports/iep");
+    navigate(
+      iepId
+        ? `/reports/iep?iepId=${encodeURIComponent(iepId)}`
+        : "/reports/iep",
+    );
   };
 
   const selectProgressIep = (iepId) => {
@@ -224,13 +232,21 @@ const Reports = ({ view = "overview" }) => {
         description={config.description}
         actions={
           <>
-            <Button onClick={() => navigate("/iep/new")} icon={Plus}>
+            <Button
+              variant="secondary"
+              onClick={() => navigate("/iep/new")}
+              icon={Plus}
+            >
               New IEP
             </Button>
             {view !== "document" && (
-              <Button variant="secondary" onClick={() => window.print()} icon={Printer}>
-                Print
-              </Button>
+              <IconButton
+                icon={Printer}
+                label="Print report"
+                tooltipPosition="left"
+                className="!h-10 !min-h-10 !w-10 !p-0"
+                onClick={() => window.print()}
+              />
             )}
           </>
         }
@@ -345,54 +361,51 @@ const IepDocumentReport = ({
   return (
     <div className="space-y-5">
       <Panel className="report-screen-only">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <label className="form-control w-full">
-            <span className="mb-1.5 text-sm font-medium">Choose an IEP</span>
-            <select
-              className="select select-bordered w-full"
-              value={selectedIep?.id || ""}
-              onChange={(event) => onSelectIep(event.target.value)}
-            >
-              <option value="">Select an IEP to preview</option>
-              {ieps.map((iep) => (
-                <option key={iep.id} value={iep.id}>
-                  {getIepStudentName(iep) || "Unnamed student"} - {iep.title}
-                </option>
-              ))}
-            </select>
-            <span className="mt-2 text-xs text-base-content/60">
-              Review the complete document and correct the IEP before printing
-              or exporting it.
-            </span>
-          </label>
-
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <SelectInput
+            label="Choose an IEP"
+            value={selectedIep?.id || ""}
+            onChange={onSelectIep}
+            placeholder="Select an IEP to preview"
+            helperText="Review the complete document and correct the IEP before printing or exporting it."
+            options={ieps.map((iep) => ({
+              value: iep.id,
+              label: `${getIepStudentName(iep) || "Unnamed student"} - ${iep.title}`,
+            }))}
+          />
           {selectedIep && (
-            <div className="flex flex-wrap gap-2">
-              <Link
-                to={`/iep/${selectedIep.id}/edit`}
-                className="btn btn-ghost"
-              >
-                <Pencil className="h-4 w-4" /> Edit IEP
-              </Link>
-              <Button
-                icon={Download}
-                variant="secondary"
-                onClick={() =>
-                  downloadIepWordDocument({
-                    title: selectedIep.title,
-                    data: selectedIep.data,
-                    student: selectedStudent,
-                    progressSessions,
-                    aiProgressSummary: includedProgressSummary,
-                  })
-                }
-              >
-                Export Word
-              </Button>
-              <Button icon={Printer} onClick={() => window.print()}>
-                Print
-              </Button>
-            </div>
+            <ActionMenu
+              label="Document options"
+              items={[
+                {
+                  id: "edit",
+                  label: "Edit IEP",
+                  icon: Pencil,
+                  to: `/iep/${selectedIep.id}/edit`,
+                },
+                {
+                  id: "export",
+                  label: "Export Word (WIP)",
+                  icon: Download,
+                  onClick: () =>
+                    // downloadIepWordDocument({
+                    //   title: selectedIep.title,
+                    //   iep: selectedIep,
+                    //   data: selectedIep.data,
+                    //   student: selectedStudent,
+                    //   progressSessions,
+                    //   aiProgressSummary: includedProgressSummary,
+                    // })
+                    "",
+                },
+                {
+                  id: "print",
+                  label: "Print",
+                  icon: Printer,
+                  onClick: () => window.print(),
+                },
+              ]}
+            />
           )}
         </div>
       </Panel>
@@ -484,7 +497,15 @@ const ProgressReport = ({
       return;
     }
     if (!window.electronAPI?.ai?.summarizeProgress) {
-      toast.error("AI progress summaries are available in the GURO desktop app");
+      toast.error(
+        "AI progress summaries are available in the GURO desktop app",
+      );
+      return;
+    }
+    if (!(await aiSettingsService.isConfigured())) {
+      toast.error(
+        "AI is not configured. Please ask an administrator to set it up in Settings.",
+      );
       return;
     }
 
@@ -525,18 +546,20 @@ const ProgressReport = ({
       onIncluded(aiSummary.trim());
       toast.success("Progress summary included in the printable IEP report");
     } catch (error) {
-      toast.error(error.message || "Could not include the summary in the report");
+      toast.error(
+        error.message || "Could not include the summary in the report",
+      );
     }
   };
 
   return (
     <div className="space-y-4">
-      <Panel title="AI Progress Summary">
+      <Panel title="AI Progress Summary" className="border border-base-300 ">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <label className="form-control w-full">
             <span className="mb-1.5 text-sm font-medium">IEP record</span>
             <select
-              className="select select-bordered w-full"
+              className="select select-bordered w-full cursor-pointer rounded-sm border border-base-300 p-2 focus:outline-none focus:ring-0"
               value={selectedIep?.id || ""}
               onChange={(event) => onSelectIep(event.target.value)}
             >
@@ -567,9 +590,7 @@ const ProgressReport = ({
       {aiSummary && (
         <AiProgressSummaryPanel
           value={aiSummary}
-          onChange={(text) =>
-            setSummaryDraft({ iepId: selectedIep.id, text })
-          }
+          onChange={(text) => setSummaryDraft({ iepId: selectedIep.id, text })}
           onCopy={copySummary}
           onInclude={includeSummary}
         />
@@ -604,14 +625,15 @@ const ProgressReport = ({
                 className="grid gap-2 py-3 first:pt-0 last:pb-0 sm:grid-cols-[10rem_minmax(0,1fr)_7rem] sm:items-center"
               >
                 <span className="text-sm font-semibold">{area.area}</span>
-                <div className="h-2 overflow-hidden rounded-full bg-base-200">
+                <div className="h-3 overflow-hidden rounded-full bg-base-200 border border-base-300">
                   <div
                     className="h-full rounded-full bg-primary"
                     style={{ width: `${Math.min(area.progress, 100)}%` }}
                   />
                 </div>
                 <span className="text-sm text-base-content/60 sm:text-right">
-                  {area.progress}% / {area.total} {area.total === 1 ? "goal" : "goals"}
+                  {area.progress}% / {area.total}{" "}
+                  {area.total === 1 ? "goal" : "goals"}
                 </span>
               </div>
             ))}
@@ -621,7 +643,7 @@ const ProgressReport = ({
         )}
       </Panel>
 
-      <Panel title="Goal Progress Summary">
+      <Panel title="Goal Progress Summary" className="border border-base-300">
         {goalRecords.length ? (
           <div className="overflow-x-auto">
             <table className="table">
@@ -693,7 +715,9 @@ const getUniqueGoalRecords = (ieps) => {
   return newestFirst.flatMap((iep) =>
     (iep.data?.goals || []).map(normalizeGoal).flatMap((goal) => {
       const studentKey = String(
-        iep.studentId || iep.data?.studentInfo?.studentId || getIepStudentName(iep),
+        iep.studentId ||
+          iep.data?.studentInfo?.studentId ||
+          getIepStudentName(iep),
       ).toLowerCase();
       const goalKey = `${goal.area}::${getGoalStatement(goal)}`
         .trim()
@@ -726,7 +750,7 @@ const ComplianceReport = ({ items }) => (
               <tr key={iep.id}>
                 <td className="font-medium">{iep.title}</td>
                 <td>{getIepStudentName(iep) || "No student name"}</td>
-                <td>{formatDate(iep.data?.studentInfo?.iepEndDate)}</td>
+                <td>{formatDate(getIepDates(iep).endDate)}</td>
                 <td>
                   <div className="flex flex-wrap gap-1">
                     {issues.map((issue) => (
@@ -783,8 +807,7 @@ const AnalyticsReport = ({ students, ieps, data }) => {
             profiles.
           </p>
           <p>
-            Progress scores can be added later through the existing
-            `progress_data` database table.
+            Progress scores come from sessions saved in Progress Monitoring.
           </p>
         </div>
       </Panel>

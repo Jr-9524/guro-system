@@ -1,3 +1,7 @@
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import FormalIepReport from "../components/reports/FormalIepReport";
+
 const escapeHtml = (value) =>
   String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -6,297 +10,232 @@ const escapeHtml = (value) =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 
-const listItems = (items = []) =>
-  items.length
-    ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
-    : "<p>None documented.</p>";
-
-const field = (label, value) => `
-  <div class="field">
-    <span class="label">${escapeHtml(label)}</span>
-    <span>${escapeHtml(value || "Not set")}</span>
-  </div>
+const WORD_COMPATIBILITY_STYLES = `
+  :root {
+    --color-base-100: #ffffff;
+    --color-base-200: #f3f4f6;
+    --color-base-300: #9ca3af;
+    --color-base-content: #111827;
+  }
+  html, body { background: #ffffff; color: #111827; margin: 0; }
+  body {
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+      BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding: 14mm 16mm;
+  }
+  .report-screen-only { display: none !important; }
+  .iep-report-document {
+    --iep-report-border: #6b7280;
+    border: 0;
+    box-shadow: none;
+    margin: 0 auto;
+    max-width: 210mm;
+    padding: 0;
+    width: 100%;
+  }
+  .export-grid-table,
+  .export-meta-table,
+  .export-signatures-table {
+    border-collapse: collapse;
+    display: table !important;
+    table-layout: fixed;
+    width: 100%;
+  }
+  .export-grid-table tr,
+  .export-meta-table tr,
+  .export-signatures-table tr { display: table-row !important; }
+  .export-grid-table .iep-report-field {
+    display: table-cell !important;
+    height: 42px;
+    vertical-align: top;
+  }
+  .export-meta-table td {
+    border: 1px solid #6b7280;
+    padding: 7px 9px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .export-meta-table strong {
+    color: #4b5563;
+    display: block;
+    font-size: 9px;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  .export-columns-table td {
+    border: 1px solid #6b7280;
+    padding: 9px;
+    vertical-align: top;
+  }
+  .export-signatures-table {
+    border-collapse: separate;
+    border-spacing: 18px 0;
+    margin-top: 58px;
+    text-align: center;
+  }
+  .export-signatures-table td {
+    border: 0;
+    padding: 0;
+    vertical-align: bottom;
+    width: 33.333%;
+  }
+  .export-signatures-table span {
+    display: block;
+    min-height: 36px;
+  }
+  .export-signatures-table i {
+    border-top: 1px solid #111827;
+    display: block;
+  }
+  .export-signatures-table strong,
+  .export-signatures-table small {
+    display: block;
+    margin-top: 4px;
+  }
+  @page { size: A4; margin: 14mm 16mm; }
 `;
 
-const section = (title, body) => `
-  <section>
-    <h2>${escapeHtml(title)}</h2>
-    ${body}
-  </section>
-`;
+const buildIepRecord = ({ title, data, iep }) => {
+  if (iep?.data) return iep;
+  return {
+    ...(data?.id ? data : {}),
+    title: title || data?.title || "IEP Document",
+    data: data?.data || data || {},
+    status: data?.status || "draft",
+    createdAt: data?.createdAt,
+    lastModified: data?.lastModified,
+    completedSections: data?.completedSections || [],
+  };
+};
 
-const buildIepDocumentHtml = ({
+const collectFormalReportStyles = () => {
+  const collected = [];
+
+  const collectRules = (rules, wrapper = null) => {
+    const matches = [];
+    Array.from(rules || []).forEach((rule) => {
+      if (rule.cssRules) {
+        const nested = collectRules(rule.cssRules, rule.conditionText || null);
+        if (nested) matches.push(nested);
+        return;
+      }
+      const text = rule.cssText || "";
+      if (
+        rule.selectorText?.includes("iep-report") ||
+        rule.selectorText?.includes("report-screen-only") ||
+        text.startsWith("@page")
+      ) {
+        matches.push(text);
+      }
+    });
+    if (!matches.length) return "";
+    const css = matches.join("\n");
+    return wrapper ? `@media ${wrapper} {\n${css}\n}` : css;
+  };
+
+  Array.from(document.styleSheets).forEach((sheet) => {
+    try {
+      const css = collectRules(sheet.cssRules);
+      if (css) collected.push(css);
+    } catch {
+      // Ignore stylesheets that the browser does not allow CSSOM access to.
+    }
+  });
+  return collected.join("\n");
+};
+
+const replaceGridWithTable = (grid, columns) => {
+  const table = document.createElement("table");
+  table.className = `${grid.className} export-grid-table`;
+  const body = table.createTBody();
+  let row = null;
+  let usedColumns = 0;
+
+  Array.from(grid.children).forEach((field) => {
+    const wide = field.classList.contains("iep-report-field-wide");
+    if (!row || wide || usedColumns >= columns) {
+      row = body.insertRow();
+      usedColumns = 0;
+    }
+    const cell = row.insertCell();
+    cell.className = field.className;
+    if (wide) cell.colSpan = columns;
+    while (field.firstChild) cell.appendChild(field.firstChild);
+    usedColumns += wide ? columns : 1;
+  });
+  grid.replaceWith(table);
+};
+
+const replaceItemsWithTable = (container, columns, className) => {
+  const table = document.createElement("table");
+  table.className = className;
+  const body = table.createTBody();
+  let row;
+
+  Array.from(container.children).forEach((item, index) => {
+    if (index % columns === 0) row = body.insertRow();
+    const cell = row.insertCell();
+    while (item.firstChild) cell.appendChild(item.firstChild);
+  });
+  container.replaceWith(table);
+};
+
+const makeWordCompatible = (markup) => {
+  const parsed = new DOMParser().parseFromString(markup, "text/html");
+  parsed.querySelectorAll(".report-screen-only").forEach((node) => node.remove());
+  parsed.querySelectorAll(".iep-report-grid").forEach((grid) =>
+    replaceGridWithTable(
+      grid,
+      grid.classList.contains("iep-report-grid-three") ? 3 : 2,
+    ),
+  );
+  parsed.querySelectorAll(".iep-report-meta").forEach((meta) =>
+    replaceItemsWithTable(meta, 3, "iep-report-meta export-meta-table"),
+  );
+  parsed.querySelectorAll(".iep-report-columns").forEach((columns) =>
+    replaceItemsWithTable(
+      columns,
+      3,
+      "iep-report-columns export-grid-table export-columns-table",
+    ),
+  );
+  parsed.querySelectorAll(".iep-report-signatures").forEach((signatures) =>
+    replaceItemsWithTable(
+      signatures,
+      3,
+      "iep-report-signatures export-signatures-table",
+    ),
+  );
+  return parsed.body.innerHTML;
+};
+
+const buildFormalDocumentHtml = ({
   title,
   data,
+  iep,
   student = {},
   progressSessions = [],
   aiProgressSummary = "",
 }) => {
-  const studentInfo = data.studentInfo || {};
-  const plaaFP = data.plaaFP || {};
-  const goals = (data.goals || []).map(normalizeGoal);
-  const accommodations = data.accommodations || {};
-  const services = data.services || [];
-  const progressPlan = data.progressPlan || {};
-  const learnerName = [
-    student.firstName || studentInfo.firstName,
-    student.middleName,
-    student.lastName || studentInfo.lastName,
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const recentProgress = [...progressSessions]
-    .sort(
-      (a, b) =>
-        new Date(b.sessionDate || b.createdAt) -
-        new Date(a.sessionDate || a.createdAt),
-    )
-    .slice(0, 5);
-  const preparedBy = progressPlan.responsible || "Not specified";
+  const record = buildIepRecord({ title, data, iep });
+  const markup = renderToStaticMarkup(
+    React.createElement(FormalIepReport, {
+      iep: record,
+      student,
+      progressSessions,
+      aiProgressSummary,
+    }),
+  );
+  const reportStyles = collectFormalReportStyles();
 
   return `<!doctype html>
 <html>
-<head>
-  <meta charset="utf-8" />
-  <title>${escapeHtml(title)}</title>
-  <style>
-    body {
-      color: #111827;
-      font-family: Arial, sans-serif;
-      line-height: 1.45;
-      margin: 32px;
-    }
-    h1 {
-      border-bottom: 2px solid #111827;
-      font-size: 24px;
-      margin: 0 0 16px;
-      padding-bottom: 8px;
-    }
-    .document-header { text-align: center; }
-    .document-header .system { font-size: 11px; font-weight: bold; letter-spacing: .14em; }
-    .document-header .school { margin: 3px 0 12px; }
-    .document-header .subtitle { color: #4b5563; font-size: 12px; }
-    h2 {
-      font-size: 17px;
-      margin: 24px 0 10px;
-    }
-    h3 {
-      font-size: 14px;
-      margin: 12px 0 4px;
-    }
-    p {
-      margin: 6px 0;
-    }
-    table {
-      border-collapse: collapse;
-      margin-top: 8px;
-      width: 100%;
-    }
-    th, td {
-      border: 1px solid #9ca3af;
-      padding: 8px;
-      text-align: left;
-      vertical-align: top;
-    }
-    th {
-      background: #f3f4f6;
-    }
-    ul {
-      margin: 6px 0 0 20px;
-      padding: 0;
-    }
-    section {
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
-    .grid {
-      display: grid;
-      gap: 8px 16px;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .field {
-      border-bottom: 1px solid #e5e7eb;
-      padding: 5px 0;
-    }
-    .label {
-      color: #4b5563;
-      display: block;
-      font-size: 11px;
-      font-weight: bold;
-      letter-spacing: .04em;
-      text-transform: uppercase;
-    }
-    .signatures { display: grid; gap: 28px; grid-template-columns: repeat(3, 1fr); margin-top: 58px; text-align: center; }
-    .signature { border-top: 1px solid #111827; padding-top: 5px; }
-    .signature small { color: #4b5563; display: block; margin-top: 2px; }
-    @media print {
-      body { margin: 18mm; }
-      button { display: none; }
-    }
-  </style>
-</head>
-<body>
-  <div class="document-header">
-    <div class="system">GURO SYSTEM</div>
-    <div class="school">${escapeHtml(studentInfo.school || student.school || "School not specified")}</div>
-    <h1>Individualized Education Program</h1>
-    <div class="subtitle">${escapeHtml(title)} | Confidential educational document</div>
-  </div>
-  ${section(
-    "Learner Information",
-    `<div class="grid">
-      ${field("Learner name", learnerName)}
-      ${field("Learner Reference Number", student.lrn)}
-      ${field("Grade level", studentInfo.gradeLevel || student.gradeLevel)}
-      ${field("Section", student.section)}
-      ${field("Age", studentInfo.age)}
-      ${field("School", studentInfo.school || student.school)}
-      ${field("Disability category", studentInfo.disabilityCategory || student.primaryDisabilityCategory)}
-      ${field("Disability severity", studentInfo.disabilitySeverity || student.severityLevel)}
-      ${field("IEP dates", `${studentInfo.iepStartDate || "Not specified"} to ${studentInfo.iepEndDate || "Not specified"}`)}
-    </div>`,
-  )}
-  ${section(
-    "Parent / Guardian Information",
-    `<div class="grid">
-      ${field("Name", student.guardianName || studentInfo.guardianName)}
-      ${field("Relationship", student.guardianRelationship || studentInfo.guardianRelationship)}
-      ${field("Contact number", student.guardianContact || studentInfo.guardianContact)}
-      ${field("Email", student.guardianEmail || studentInfo.guardianEmail)}
-    </div>`,
-  )}
-  ${section(
-    "Present Levels (PLAAFP)",
-    `<div class="grid">
-      ${field("Reading level", plaaFP.readingLevel)}
-      ${field("Math level", plaaFP.mathLevel)}
-    </div>
-    <h3>Strengths</h3><p>${escapeHtml(plaaFP.strengths || "Not documented.")}</p>
-    <h3>Challenges / Areas of Need</h3><p>${escapeHtml(plaaFP.challenges || "Not documented.")}</p>
-    <h3>Impact on Classroom Participation</h3><p>${escapeHtml(plaaFP.impact || "Not documented.")}</p>
-    <h3>Draft PLAAFP</h3><p>${escapeHtml(plaaFP.aiDraft || "Not documented.")}</p>`,
-  )}
-  ${section(
-    "Annual Goals",
-    goals.length
-      ? goals
-          .map(
-            (goal, index) => `
-              <h3>Goal ${index + 1}: ${escapeHtml(goal.area || "Goal")}</h3>
-              <p>${escapeHtml(getGoalStatement(goal))}</p>
-              <h4>Current Performance</h4>
-              <p>${escapeHtml(goal.currentPerformance || "Not documented.")}</p>
-              <p><strong>Need:</strong> ${escapeHtml(goal.need || "Not documented.")}</p>
-              <p><strong>Baseline:</strong> ${escapeHtml(goal.baselineValue || "Not set")} (${escapeHtml(goal.baselineMethod || "method not set")})</p>
-              <table>
-                <tr>
-                  <th>Status</th>
-                  <th>Progress</th>
-                  <th>Frequency</th>
-                  <th>Measurement</th>
-                </tr>
-                <tr>
-                  <td>${escapeHtml(goal.status)}</td>
-                  <td>${escapeHtml(`${goal.progressPercentage}%`)}</td>
-                  <td>${escapeHtml(goal.measurementFrequency || "Not set")}</td>
-                  <td>${escapeHtml(goal.measurementMethod || "Not set")}</td>
-                </tr>
-              </table>
-              <p><strong>Progress reporting:</strong> ${escapeHtml(goal.progressReportingSchedule || "Not set")}</p>
-              <h4>Short-Term Objectives</h4>
-              ${listItems(
-                goal.objectives.map(
-                  (objective) =>
-                    `${objective.description || "Untitled objective"} - ${objective.criteria || "criteria not set"} (${objective.status})`,
-                ),
-              )}
-              <h4>Supports / Accommodations</h4>
-              ${listItems(goal.supports)}`,
-          )
-          .join("")
-      : "<p>No goals documented.</p>",
-  )}
-  ${section(
-    "Accommodations & Modifications",
-    `<h3>Presentation</h3>
-    ${listItems(accommodations.presentation)}
-    <h3>Time and Environment</h3>
-    ${listItems(accommodations.timeEnvironment)}
-    <h3>Response</h3>
-    ${listItems(accommodations.response)}`,
-  )}
-  ${section(
-    "Special Education Services",
-    services.length
-      ? `<table>
-          <tr>
-            <th>Service</th>
-            <th>Frequency</th>
-            <th>Duration</th>
-            <th>Setting</th>
-            <th>Provider</th>
-          </tr>
-          ${services
-            .map(
-              (service) => `
-                <tr>
-                  <td>${escapeHtml(service.name || "Service")}</td>
-                  <td>${escapeHtml(service.frequency || "Not set")}</td>
-                  <td>${escapeHtml(service.duration || "Not set")}</td>
-                  <td>${escapeHtml(service.setting || "Not set")}</td>
-                  <td>${escapeHtml(service.provider || "Not set")}</td>
-                </tr>`,
-            )
-            .join("")}
-        </table>`
-      : "<p>No services documented.</p>",
-  )}
-  ${section(
-    "Progress Monitoring Plan",
-    `<div class="grid">
-      ${field("Data collection method", progressPlan.dataMethod)}
-      ${field("Collection frequency", progressPlan.frequency)}
-      ${field("Parent report schedule", progressPlan.parentReport)}
-      ${field("Person responsible", progressPlan.responsible)}
-    </div>
-    <h3>Additional Notes</h3><p>${escapeHtml(progressPlan.notes || "None documented.")}</p>`,
-  )}
-  ${section(
-    "Recent Progress Notes",
-    recentProgress.length
-      ? recentProgress
-          .map((note) => {
-            const goal = goals.find(
-              (item) => String(item.id) === String(note.goalId),
-            );
-            const score = Number(note.total) > 0
-              ? ` | Score: ${note.score}/${note.total}`
-              : "";
-            return `<h3>${escapeHtml(note.sessionDate || note.createdAt || "Date not specified")} - ${escapeHtml(goal?.area || "Goal")}</h3>
-              <p>${escapeHtml(note.notes || "No note provided")}${escapeHtml(score)}</p>`;
-          })
-          .join("")
-      : "<p>No progress notes provided.</p>",
-  )}
-  ${aiProgressSummary
-    ? section(
-        "Teacher-Reviewed Progress Summary",
-        `<p>${escapeHtml(aiProgressSummary)}</p>`,
-      )
-    : ""}
-  ${section(
-    "Document Preparation and Signatures",
-    `<div class="grid">
-      ${field("Prepared by", preparedBy)}
-      ${field("Date generated", new Date().toLocaleDateString())}
-    </div>
-    <div class="signatures">
-      <div class="signature">${escapeHtml(preparedBy)}<small>Teacher / Case Manager</small></div>
-      <div class="signature">${escapeHtml(student.guardianName || studentInfo.guardianName || "Parent / Guardian")}<small>Parent / Guardian</small></div>
-      <div class="signature">School / IEP Coordinator<small>Signature over printed name / Date</small></div>
-    </div>`,
-  )}
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(title || record.title || "IEP Document")}</title>
+    <style>${reportStyles}\n${WORD_COMPATIBILITY_STYLES}</style>
+  </head>
+  <body>${makeWordCompatible(markup)}</body>
 </html>`;
 };
 
@@ -317,30 +256,21 @@ const makeFileSafe = (value) =>
     .replace(/^-|-$/g, "")
     .toLowerCase();
 
-export const printIepDocument = ({ title, data, student, progressSessions, aiProgressSummary }) => {
+export const printIepDocument = (options) => {
   const printWindow = window.open("", "_blank", "noopener,noreferrer");
   if (!printWindow) return false;
-
-  printWindow.document.write(
-    buildIepDocumentHtml({ title, data, student, progressSessions, aiProgressSummary }),
-  );
+  printWindow.document.write(buildFormalDocumentHtml(options));
   printWindow.document.close();
   printWindow.focus();
   printWindow.print();
   return true;
 };
 
-export const downloadIepWordDocument = ({
-  title,
-  data,
-  student,
-  progressSessions,
-  aiProgressSummary,
-}) => {
+export const downloadIepWordDocument = (options) => {
+  const title = options.title || options.iep?.title || "IEP Document";
   downloadBlob(
-    buildIepDocumentHtml({ title, data, student, progressSessions, aiProgressSummary }),
+    buildFormalDocumentHtml(options),
     `${makeFileSafe(title)}.doc`,
     "application/msword;charset=utf-8",
   );
 };
-import { getGoalStatement, normalizeGoal } from "../utils/goalUtils";

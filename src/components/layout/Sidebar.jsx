@@ -1,4 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { guroSidebar } from "../../styles/guroStyles";
 import useAuthStore from "../../stores/authStore";
 import {
   getRoleLabel,
@@ -44,8 +45,8 @@ const Sidebar = ({ onClose }) => {
   };
 
   return (
-    <aside className="flex h-full flex-col border-r border-base-300 bg-base-100 text-base-content">
-      <div className="border-b border-base-300 px-4 py-4">
+    <aside className={guroSidebar.shell}>
+      <div className={`border-b px-4 py-4 ${guroSidebar.divider}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img
@@ -55,15 +56,13 @@ const Sidebar = ({ onClose }) => {
             />
             <div>
               <h1 className="text-lg font-black tracking-[0.16em]">GURO</h1>
-              <p className="text-[10px] font-semibold tracking-wider text-base-content/50">
-                IEP MANAGEMENT
-              </p>
+              <p className={guroSidebar.brandCaption}>IEP MANAGEMENT</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="btn btn-ghost btn-xs btn-square md:hidden"
+            className={`btn btn-ghost btn-xs btn-square md:hidden ${guroSidebar.iconButton}`}
             aria-label="Close sidebar"
           >
             <X size={16} />
@@ -79,9 +78,9 @@ const Sidebar = ({ onClose }) => {
           <button
             type="button"
             onClick={() => navigate("/iep/new")}
-            className="btn btn-sm mb-4 w-full justify-start gap-2 rounded-xl border border-base-300 bg-base-200 px-3 text-base-content shadow-none hover:border-primary/25 hover:bg-primary/5"
+            className={`btn btn-sm ${guroSidebar.create}`}
           >
-            <Plus size={16} className="text-base-content" />
+            <Plus size={16} />
             Create IEP
           </button>
         )}
@@ -97,41 +96,36 @@ const Sidebar = ({ onClose }) => {
                 to={href}
                 draggable={false}
                 aria-current={isActive ? "page" : undefined}
-                className={`flex select-none items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
-                  isActive
-                    ? "bg-base-200 font-bold text-base-content ring-1 ring-inset ring-base-300"
-                    : "text-base-content/65 hover:bg-base-200 hover:text-base-content"
+                className={`${guroSidebar.link} ${
+                  isActive ? guroSidebar.linkActive : guroSidebar.linkIdle
                 }`}
                 onClick={() => window.innerWidth < 768 && onClose()}
               >
                 <Icon className="h-5 w-5 shrink-0" />
                 <span>{label}</span>
                 {isActive && (
-                  <span
-                    className="ml-auto h-2 w-2 shrink-0 rounded-full bg-base-content/60"
-                    aria-hidden="true"
-                  />
+                  <span className={guroSidebar.activeDot} aria-hidden="true" />
                 )}
               </Link>
             );
           })}
       </nav>
 
-      <div className="border-t border-base-300 p-3">
+      <div className={`border-t p-3 ${guroSidebar.divider}`}>
         <div className="flex items-center gap-2 rounded-xl p-1">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-base-200 text-sm font-bold text-base-content">
-            {user?.fullName?.[0] || "U"}
-          </div>
+          <div className={guroSidebar.avatar}>{user?.fullName?.[0] || "U"}</div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">
               {user?.fullName || "User"}
             </p>
-            <p className="text-xs text-base-content/50">{getRoleLabel(user)}</p>
+            <p className={`text-xs ${guroSidebar.meta}`}>
+              {getRoleLabel(user)}
+            </p>
           </div>
           <button
             type="button"
             onClick={logout}
-            className="btn btn-ghost btn-xs btn-square text-base-content/60 hover:bg-base-200 hover:text-base-content"
+            className={`btn btn-ghost btn-xs btn-square ${guroSidebar.iconButton}`}
             title="Sign out"
             aria-label="Sign out"
           >
